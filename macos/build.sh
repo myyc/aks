@@ -82,7 +82,10 @@ if [ -n "$LIBRAW_STATIC" ]; then
     
     echo -e "${YELLOW}Linking with dependencies: jpeg and lcms2${NC}"
     
+    # Set minimum macOS version to match system libraries
+    # Use 12.0 as a reasonable minimum that supports both Intel and Apple Silicon
     clang -shared -fPIC -o libraw_processor.dylib \
+        -mmacosx-version-min=12.0 \
         raw_processor/raw_processor.c \
         -I"$LIBRAW_INCLUDE" \
         "$LIBRAW_STATIC" \
@@ -95,6 +98,7 @@ else
     # Dynamic linking - fallback to the original approach
     echo -e "${YELLOW}Using dynamic linking for libraw (may have dependency issues)${NC}"
     clang -shared -fPIC -o libraw_processor.dylib \
+        -mmacosx-version-min=12.0 \
         raw_processor/raw_processor.c \
         -I"$LIBRAW_INCLUDE" -L"$LIBRAW_LIB" -lraw -lm \
         -Wl,-rpath,@loader_path
