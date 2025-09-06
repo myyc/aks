@@ -14,23 +14,39 @@ class RawProcessor {
     if (_initialized) return;
     
     // Try loading from relative path first (when running from build directory)
-    final libraryPaths = Platform.isLinux
-        ? ['linux/libraw_processor.so', 'lib/libraw_processor.so', 'libraw_processor.so', './libraw_processor.so']
-        : throw UnsupportedError('Only Linux is supported currently');
+    final List<String> libraryPaths;
+    if (Platform.isLinux) {
+      libraryPaths = [
+        'linux/libraw_processor.so', 
+        'lib/libraw_processor.so', 
+        'libraw_processor.so', 
+        './libraw_processor.so'
+      ];
+    } else if (Platform.isMacOS) {
+      libraryPaths = [
+        'macos/libraw_processor.dylib',
+        'libraw_processor.dylib',
+        './libraw_processor.dylib',
+        '../Frameworks/libraw_processor.dylib',  // Release build location
+        '../Resources/libraw_processor.dylib',   // Alternative bundle location
+      ];
+    } else {
+      throw UnsupportedError('Platform not supported: ${Platform.operatingSystem}');
+    }
     
     for (final path in libraryPaths) {
       try {
         final dylib = DynamicLibrary.open(path);
         _bindings = LibRawBindings(dylib);
         _initialized = true;
-        print('Successfully loaded libraw_processor.so from: $path');
+        print('Successfully loaded libraw_processor from: $path');
         return;
       } catch (e) {
         // Try next path
       }
     }
     
-    throw Exception('Failed to load libraw_processor.so from any path');
+    throw Exception('Failed to load libraw_processor from any path');
   }
 
   static Future<img_proc.RawPixelData?> loadRawFile(String filePath) async {
