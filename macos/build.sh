@@ -39,53 +39,82 @@ fi
 
 echo -e "${YELLOW}Found libraw at: $LIBRAW_DYLIB${NC}"
 
+# Check for static libraw library
+LIBRAW_STATIC=""
+if [ -f "$LIBRAW_LIB/libraw.a" ]; then
+    LIBRAW_STATIC="$LIBRAW_LIB/libraw.a"
+    echo -e "${GREEN}Found static libraw at: $LIBRAW_STATIC${NC}"
+    echo -e "${GREEN}Will link statically to avoid dependency issues${NC}"
+elif [ -f "$LIBRAW_LIB/libraw_r.a" ]; then
+    LIBRAW_STATIC="$LIBRAW_LIB/libraw_r.a"
+    echo -e "${GREEN}Found static libraw_r at: $LIBRAW_STATIC${NC}"
+    echo -e "${GREEN}Will link statically to avoid dependency issues${NC}"
+fi
+
 # Build libraw_processor.dylib
 echo -e "${GREEN}Building libraw_processor.dylib...${NC}"
 
-clang -shared -fPIC -o libraw_processor.dylib \
-    raw_processor/raw_processor.c \
-    -I"$LIBRAW_INCLUDE" -L"$LIBRAW_LIB" -lraw -lm \
-    -Wl,-rpath,@loader_path
+if [ -n "$LIBRAW_STATIC" ]; then
+    # Static linking - include libraw directly in our library
+    echo -e "${YELLOW}Using static linking for libraw${NC}"
+    clang -shared -fPIC -o libraw_processor.dylib \
+        raw_processor/raw_processor.c \
+        -I"$LIBRAW_INCLUDE" \
+        "$LIBRAW_STATIC" \
+        -lc++ -lz -lm \
+        -framework CoreFoundation \
+        -framework IOKit
+else
+    # Dynamic linking - fallback to the original approach
+    echo -e "${YELLOW}Using dynamic linking for libraw (may have dependency issues)${NC}"
+    clang -shared -fPIC -o libraw_processor.dylib \
+        raw_processor/raw_processor.c \
+        -I"$LIBRAW_INCLUDE" -L"$LIBRAW_LIB" -lraw -lm \
+        -Wl,-rpath,@loader_path
+fi
 
 if [ -f "libraw_processor.dylib" ]; then
     echo -e "${GREEN}✓ libraw_processor.dylib built successfully${NC}"
     
-    # Copy libraw to local directory for bundling
-    echo -e "${GREEN}Copying libraw for bundling...${NC}"
-    cp "$LIBRAW_DYLIB" ./libraw.23.dylib 2>/dev/null || cp "$LIBRAW_DYLIB" ./libraw.dylib
-    
-    # Update the library path to use @loader_path for bundled libraw
-    echo -e "${GREEN}Updating library paths for bundling...${NC}"
-    
-    # Get the actual libraw library name from otool output
-    LIBRAW_NAME=$(otool -L libraw_processor.dylib | grep libraw | awk '{print $1}')
-    echo -e "${YELLOW}Current libraw path in binary: $LIBRAW_NAME${NC}"
-    
-    # Change the libraw dependency to use @loader_path
-    install_name_tool -change "$LIBRAW_NAME" "@loader_path/libraw.dylib" libraw_processor.dylib
-    
-    # Set the install name of our library
-    install_name_tool -id "@loader_path/libraw_processor.dylib" libraw_processor.dylib
-    
-    # If we copied libraw, update its install name too
-    if [ -f "./libraw.dylib" ] || [ -f "./libraw.23.dylib" ]; then
-        LIBRAW_LOCAL=$(ls libraw*.dylib | head -1)
-        install_name_tool -id "@loader_path/libraw.dylib" "$LIBRAW_LOCAL"
-        if [ "$LIBRAW_LOCAL" != "libraw.dylib" ]; then
-            mv "$LIBRAW_LOCAL" libraw.dylib
+    # Only copy and fix libraw if we're using dynamic linking
+    if [ -z "$LIBRAW_STATIC" ]; then
+        # Copy libraw to local directory for bundling
+        echo -e "${GREEN}Copying libraw for bundling...${NC}"
+        cp "$LIBRAW_DYLIB" ./libraw.23.dylib 2>/dev/null || cp "$LIBRAW_DYLIB" ./libraw.dylib
+        
+        # Update the library path to use @loader_path for bundled libraw
+        echo -e "${GREEN}Updating library paths for bundling...${NC}"
+        
+        # Get the actual libraw library name from otool output
+        LIBRAW_NAME=$(otool -L libraw_processor.dylib | grep libraw | awk '{print $1}')
+        echo -e "${YELLOW}Current libraw path in binary: $LIBRAW_NAME${NC}"
+        
+        # Change the libraw dependency to use @loader_path
+        install_name_tool -change "$LIBRAW_NAME" "@loader_path/libraw.dylib" libraw_processor.dylib
+        
+        # Set the install name of our library
+        install_name_tool -id "@loader_path/libraw_processor.dylib" libraw_processor.dylib
+        
+        # If we copied libraw, update its install name too
+        if [ -f "./libraw.dylib" ] || [ -f "./libraw.23.dylib" ]; then
+            LIBRAW_LOCAL=$(ls libraw*.dylib | head -1)
+            install_name_tool -id "@loader_path/libraw.dylib" "$LIBRAW_LOCAL"
+            if [ "$LIBRAW_LOCAL" != "libraw.dylib" ]; then
+                mv "$LIBRAW_LOCAL" libraw.dylib
+            fi
+            echo -e "${GREEN}✓ libraw.dylib prepared for bundling${NC}"
         fi
-        echo -e "${GREEN}✓ libraw.dylib prepared for bundling${NC}"
+    else
+        echo -e "${GREEN}✓ libraw statically linked - no external dependencies${NC}"
+        # Set the install name of our library
+        install_name_tool -id "@loader_path/libraw_processor.dylib" libraw_processor.dylib
     fi
-    
-    # Verify the changes
-    echo -e "${YELLOW}Verifying library paths after modification:${NC}"
-    otool -L libraw_processor.dylib | grep -E "libraw|@loader_path"
     
     # Set proper permissions
     chmod 755 *.dylib
     
     # Show library info
-    echo -e "${YELLOW}Library dependencies after bundling setup:${NC}"
+    echo -e "${YELLOW}Library dependencies:${NC}"
     otool -L libraw_processor.dylib
     
 else
@@ -95,8 +124,12 @@ fi
 
 echo -e "\n${GREEN}Build complete!${NC}"
 echo -e "Libraries built in: $(pwd)/"
-echo -e "  - libraw_processor.dylib (our FFI wrapper)"
-echo -e "  - libraw.dylib (bundled dependency)"
+if [ -n "$LIBRAW_STATIC" ]; then
+    echo -e "  - libraw_processor.dylib (with statically linked libraw)"
+else
+    echo -e "  - libraw_processor.dylib (our FFI wrapper)"
+    echo -e "  - libraw.dylib (bundled dependency)"
+fi
 
 # For development with flutter run, copy to app bundle Frameworks
 APP_BUNDLE_DEBUG="../build/macos/Build/Products/Debug/aks.app/Contents/Frameworks"
@@ -112,11 +145,15 @@ if [ ! -d "$APP_BUNDLE_RELEASE" ]; then
     mkdir -p "$APP_BUNDLE_RELEASE"
 fi
 
-# Copy both libraries to the app bundle Frameworks directory
+# Copy libraries to the app bundle Frameworks directory
 cp libraw_processor.dylib "$APP_BUNDLE_DEBUG/" 2>/dev/null || true
-cp libraw.dylib "$APP_BUNDLE_DEBUG/" 2>/dev/null || true
 cp libraw_processor.dylib "$APP_BUNDLE_RELEASE/" 2>/dev/null || true
-cp libraw.dylib "$APP_BUNDLE_RELEASE/" 2>/dev/null || true
+
+# Only copy libraw.dylib if using dynamic linking
+if [ -z "$LIBRAW_STATIC" ] && [ -f "libraw.dylib" ]; then
+    cp libraw.dylib "$APP_BUNDLE_DEBUG/" 2>/dev/null || true
+    cp libraw.dylib "$APP_BUNDLE_RELEASE/" 2>/dev/null || true
+fi
 
 # Verify the libraries in the app bundle have correct paths
 if [ -f "$APP_BUNDLE_DEBUG/libraw_processor.dylib" ]; then
