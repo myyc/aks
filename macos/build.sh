@@ -92,4 +92,20 @@ echo -e "\n${GREEN}Build complete!${NC}"
 echo -e "Libraries built in: $(pwd)/"
 echo -e "  - libraw_processor.dylib (our FFI wrapper)"
 echo -e "  - libraw.dylib (bundled dependency)"
-echo -e "\n${YELLOW}These libraries should be included in the app bundle.${NC}"
+
+# For development with flutter run, copy to build directory
+if [ ! -d "../build/macos/Build/Products/Debug" ]; then
+    mkdir -p ../build/macos/Build/Products/Debug
+fi
+if [ ! -d "../build/macos/Build/Products/Release" ]; then
+    mkdir -p ../build/macos/Build/Products/Release
+fi
+
+echo -e "\n${GREEN}Copying libraries for Flutter development...${NC}"
+cp libraw_processor.dylib ../build/macos/Build/Products/Debug/ 2>/dev/null || true
+cp libraw.dylib ../build/macos/Build/Products/Debug/ 2>/dev/null || true
+cp libraw_processor.dylib ../build/macos/Build/Products/Release/ 2>/dev/null || true
+cp libraw.dylib ../build/macos/Build/Products/Release/ 2>/dev/null || true
+
+echo -e "${GREEN}✓ Libraries copied to Flutter build directories${NC}"
+echo -e "\n${YELLOW}You can now run: flutter run -d macos${NC}"

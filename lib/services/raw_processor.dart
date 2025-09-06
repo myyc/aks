@@ -23,10 +23,15 @@ class RawProcessor {
         './libraw_processor.so'
       ];
     } else if (Platform.isMacOS) {
+      // When running with flutter run, the working directory is the project root
+      // When running as an app bundle, libraries are in Frameworks/
       libraryPaths = [
+        'build/macos/Build/Products/Debug/libraw_processor.dylib',
+        'build/macos/Build/Products/Release/libraw_processor.dylib',
         'macos/libraw_processor.dylib',
         'libraw_processor.dylib',
         './libraw_processor.dylib',
+        '@executable_path/../Frameworks/libraw_processor.dylib',  // App bundle
         '../Frameworks/libraw_processor.dylib',  // Release build location
         '../Resources/libraw_processor.dylib',   // Alternative bundle location
       ];
@@ -42,11 +47,11 @@ class RawProcessor {
         print('Successfully loaded libraw_processor from: $path');
         return;
       } catch (e) {
-        // Try next path
+        print('Failed to load from $path: $e');
       }
     }
     
-    throw Exception('Failed to load libraw_processor from any path');
+    throw Exception('Failed to load libraw_processor from any path. Tried: ${libraryPaths.join(", ")}');
   }
 
   static Future<img_proc.RawPixelData?> loadRawFile(String filePath) async {
