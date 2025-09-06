@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
 
 static char last_error[256] = {0};
 
@@ -30,13 +31,29 @@ int raw_processor_open(void* processor, const char* filename) {
         return -1;
     }
     
+    // Debug: Print the file path being opened
+    fprintf(stderr, "DEBUG: Attempting to open RAW file: %s\n", filename);
+    
+    // Check if file exists and is readable
+    FILE* test = fopen(filename, "rb");
+    if (!test) {
+        snprintf(last_error, sizeof(last_error), "Cannot open file: %s (errno: %d - %s)", 
+                filename, errno, strerror(errno));
+        fprintf(stderr, "DEBUG: File access failed: %s\n", last_error);
+        return -1;
+    }
+    fclose(test);
+    fprintf(stderr, "DEBUG: File is accessible\n");
+    
     libraw_data_t* lr = (libraw_data_t*)processor;
     int ret = libraw_open_file(lr, filename);
     
     if (ret != LIBRAW_SUCCESS) {
         snprintf(last_error, sizeof(last_error), "Failed to open file: %s", libraw_strerror(ret));
+        fprintf(stderr, "DEBUG: LibRaw open failed: %s (code: %d)\n", libraw_strerror(ret), ret);
         return ret;
     }
+    fprintf(stderr, "DEBUG: LibRaw opened file successfully\n");
     
     ret = libraw_unpack(lr);
     if (ret != LIBRAW_SUCCESS) {
