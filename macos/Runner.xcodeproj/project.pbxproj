@@ -204,6 +204,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 33CC10FB2044A3C60003C045 /* Build configuration list for PBXNativeTarget "Runner" */;
 			buildPhases = (
+				7D8E4960000000000000001 /* Build Native Libraries */,
 				33CC10E92044A3C60003C045 /* Sources */,
 				33CC10EA2044A3C60003C045 /* Frameworks */,
 				33CC10EB2044A3C60003C045 /* Resources */,
@@ -291,6 +292,28 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		7D8E4960000000000000001 /* Build Native Libraries */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/raw_processor/raw_processor.c",
+				"$(SRCROOT)/raw_processor/raw_processor.h",
+			);
+			name = "Build Native Libraries";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Frameworks/libraw_processor.dylib",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Build native libraries for macOS\necho \"Building native libraries...\"\n\n# Change to macos directory\ncd \"$SRCROOT\"\n\n# Check if build script exists\nif [ ! -f \"build.sh\" ]; then\n    echo \"Warning: build.sh not found, skipping native library build\"\n    exit 0\nfi\n\n# Run the build script\necho \"Running build.sh...\"\n./build.sh\n\n# Check if the library was built\nif [ ! -f \"libraw_processor.dylib\" ]; then\n    echo \"Error: Failed to build libraw_processor.dylib\"\n    exit 1\nfi\n\n# Copy to Frameworks directory\nFRAMEWORKS_DIR=\"$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/Frameworks\"\nmkdir -p \"$FRAMEWORKS_DIR\"\n\necho \"Copying libraries to $FRAMEWORKS_DIR\"\ncp libraw_processor.dylib \"$FRAMEWORKS_DIR/\"\n\n# Also copy libraw.dylib if it exists (for dynamic linking)\nif [ -f \"libraw.dylib\" ]; then\n    cp libraw.dylib \"$FRAMEWORKS_DIR/\"\nfi\n\necho \"Native libraries build complete\"\n";
+		};
 		3399D490228B24CF009A79C7 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
