@@ -1,4 +1,5 @@
 import 'dart:ffi';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
@@ -14,6 +15,12 @@ class VulkanBindings {
     if (_initialized) return true;
     
     try {
+      // macOS doesn't have Vulkan support yet (will use Metal in future)
+      if (Platform.isMacOS) {
+        print('Vulkan not available on macOS - using CPU processor');
+        return false;
+      }
+      
       // Try different possible paths for the library
       try {
         _lib = DynamicLibrary.open('linux/lib$_libName.so');

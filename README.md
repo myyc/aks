@@ -6,9 +6,13 @@ A RAW image editor. You may call it Viberoom.
 
 Very minimal for now but it has most basic RAW editing features (crop, white balance, colour curves and so on).
 
-Linux only for now but hey, give it some time. The flatpak should work and it has GPU acceleration via vulkan if your machine is good enough.
+* **linux**: The flatpak should work and it has GPU acceleration via vulkan if your machine is good enough.
+* **macos**: No packages yet and no GPU acceleration but both will come soon
+* **win**: Nothing yet.
 
 # running it
+
+## on linux
 
 Install the flatpak, or:
 
@@ -17,6 +21,14 @@ flutter run -d linux
 ```
 
 It has a few requirements which you will notice as it won't run otherwise (libraw, vulkan headers, etc.).
+
+## on macos
+
+```
+flutter run -d macos
+```
+
+You will need homebrew installed and `brew install libraw`. After that it will build. This is a hack and it will be replaced with something more sensible in the future.
 
 # on the flatpak (important)
 
