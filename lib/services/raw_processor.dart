@@ -23,17 +23,12 @@ class RawProcessor {
         './libraw_processor.so'
       ];
     } else if (Platform.isMacOS) {
-      // When running with flutter run, the working directory is the project root
-      // When running as an app bundle, libraries are in Frameworks/
+      // When running with flutter run, the library is in the Frameworks folder
+      // Try the most likely paths first to reduce error output
       libraryPaths = [
-        'build/macos/Build/Products/Debug/libraw_processor.dylib',
-        'build/macos/Build/Products/Release/libraw_processor.dylib',
-        'macos/libraw_processor.dylib',
-        'libraw_processor.dylib',
-        './libraw_processor.dylib',
-        '@executable_path/../Frameworks/libraw_processor.dylib',  // App bundle
-        '../Frameworks/libraw_processor.dylib',  // Release build location
-        '../Resources/libraw_processor.dylib',   // Alternative bundle location
+        'libraw_processor.dylib',  // Current directory (works in most cases)
+        '../Frameworks/libraw_processor.dylib',  // App bundle location
+        'macos/libraw_processor.dylib',  // Development fallback
       ];
     } else {
       throw UnsupportedError('Platform not supported: ${Platform.operatingSystem}');
@@ -47,7 +42,7 @@ class RawProcessor {
         print('Successfully loaded libraw_processor from: $path');
         return;
       } catch (e) {
-        print('Failed to load from $path: $e');
+        // Silently try next path - only show error if all fail
       }
     }
     

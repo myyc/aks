@@ -91,33 +91,7 @@ class Toolbar extends StatelessWidget {
                 imageState.redo();
               } : null,
             ),
-            const SizedBox(width: 8),
             const Spacer(),
-            // Window close button
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  appWindow.close();
-                },
-                borderRadius: BorderRadius.circular(4),
-                hoverColor: Colors.red.withOpacity(0.2),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.close,
-                      size: 20,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ),
-              ),
-            ),
             const SizedBox(width: 6),
           ],
         ),
