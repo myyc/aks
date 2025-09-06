@@ -57,10 +57,37 @@ echo -e "${GREEN}Building libraw_processor.dylib...${NC}"
 if [ -n "$LIBRAW_STATIC" ]; then
     # Static linking - include libraw directly in our library
     echo -e "${YELLOW}Using static linking for libraw${NC}"
+    
+    # Find required dependency libraries
+    JPEG_LIB=""
+    LCMS2_LIB=""
+    
+    # Try to find libjpeg
+    if [ -f "$LIBRAW_LIB/libjpeg.a" ]; then
+        JPEG_LIB="$LIBRAW_LIB/libjpeg.a"
+    elif [ -f "$LIBRAW_LIB/libjpeg.dylib" ]; then
+        JPEG_LIB="-L$LIBRAW_LIB -ljpeg"
+    else
+        JPEG_LIB="-ljpeg"
+    fi
+    
+    # Try to find lcms2
+    if [ -f "$LIBRAW_LIB/liblcms2.a" ]; then
+        LCMS2_LIB="$LIBRAW_LIB/liblcms2.a"
+    elif [ -f "$LIBRAW_LIB/liblcms2.dylib" ]; then
+        LCMS2_LIB="-L$LIBRAW_LIB -llcms2"
+    else
+        LCMS2_LIB="-llcms2"
+    fi
+    
+    echo -e "${YELLOW}Linking with dependencies: jpeg and lcms2${NC}"
+    
     clang -shared -fPIC -o libraw_processor.dylib \
         raw_processor/raw_processor.c \
         -I"$LIBRAW_INCLUDE" \
         "$LIBRAW_STATIC" \
+        $JPEG_LIB \
+        $LCMS2_LIB \
         -lc++ -lz -lm \
         -framework CoreFoundation \
         -framework IOKit
