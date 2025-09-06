@@ -39,26 +39,16 @@ fi
 
 echo -e "${YELLOW}Found libraw at: $LIBRAW_DYLIB${NC}"
 
-# Allow choosing between static and dynamic linking
-USE_STATIC="${USE_STATIC:-false}"  # Default to dynamic linking
-
 # Check for static libraw library
 LIBRAW_STATIC=""
-if [ "$USE_STATIC" = "true" ]; then
-    if [ -f "$LIBRAW_LIB/libraw.a" ]; then
-        LIBRAW_STATIC="$LIBRAW_LIB/libraw.a"
-        echo -e "${GREEN}Found static libraw at: $LIBRAW_STATIC${NC}"
-        echo -e "${GREEN}Will link statically to avoid dependency issues${NC}"
-    elif [ -f "$LIBRAW_LIB/libraw_r.a" ]; then
-        LIBRAW_STATIC="$LIBRAW_LIB/libraw_r.a"
-        echo -e "${GREEN}Found static libraw_r at: $LIBRAW_STATIC${NC}"
-        echo -e "${GREEN}Will link statically to avoid dependency issues${NC}"
-    else
-        echo -e "${YELLOW}Static library not found, falling back to dynamic linking${NC}"
-    fi
-else
-    echo -e "${YELLOW}Using dynamic linking (default)${NC}"
-    echo -e "${YELLOW}To use static linking, run: USE_STATIC=true ./build.sh${NC}"
+if [ -f "$LIBRAW_LIB/libraw.a" ]; then
+    LIBRAW_STATIC="$LIBRAW_LIB/libraw.a"
+    echo -e "${GREEN}Found static libraw at: $LIBRAW_STATIC${NC}"
+    echo -e "${GREEN}Will link statically to avoid dependency issues${NC}"
+elif [ -f "$LIBRAW_LIB/libraw_r.a" ]; then
+    LIBRAW_STATIC="$LIBRAW_LIB/libraw_r.a"
+    echo -e "${GREEN}Found static libraw_r at: $LIBRAW_STATIC${NC}"
+    echo -e "${GREEN}Will link statically to avoid dependency issues${NC}"
 fi
 
 # Build libraw_processor.dylib
