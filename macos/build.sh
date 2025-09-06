@@ -57,8 +57,9 @@ if [ -f "libraw_processor.dylib" ]; then
     # Update the library path to use @loader_path for bundled libraw
     echo -e "${GREEN}Updating library paths for bundling...${NC}"
     
-    # Get the actual libraw library name
+    # Get the actual libraw library name from otool output
     LIBRAW_NAME=$(otool -L libraw_processor.dylib | grep libraw | awk '{print $1}')
+    echo -e "${YELLOW}Current libraw path in binary: $LIBRAW_NAME${NC}"
     
     # Change the libraw dependency to use @loader_path
     install_name_tool -change "$LIBRAW_NAME" "@loader_path/libraw.dylib" libraw_processor.dylib
@@ -75,6 +76,10 @@ if [ -f "libraw_processor.dylib" ]; then
         fi
         echo -e "${GREEN}✓ libraw.dylib prepared for bundling${NC}"
     fi
+    
+    # Verify the changes
+    echo -e "${YELLOW}Verifying library paths after modification:${NC}"
+    otool -L libraw_processor.dylib | grep -E "libraw|@loader_path"
     
     # Set proper permissions
     chmod 755 *.dylib
@@ -93,19 +98,41 @@ echo -e "Libraries built in: $(pwd)/"
 echo -e "  - libraw_processor.dylib (our FFI wrapper)"
 echo -e "  - libraw.dylib (bundled dependency)"
 
-# For development with flutter run, copy to build directory
-if [ ! -d "../build/macos/Build/Products/Debug" ]; then
-    mkdir -p ../build/macos/Build/Products/Debug
-fi
-if [ ! -d "../build/macos/Build/Products/Release" ]; then
-    mkdir -p ../build/macos/Build/Products/Release
-fi
+# For development with flutter run, copy to app bundle Frameworks
+APP_BUNDLE_DEBUG="../build/macos/Build/Products/Debug/aks.app/Contents/Frameworks"
+APP_BUNDLE_RELEASE="../build/macos/Build/Products/Release/aks.app/Contents/Frameworks"
 
 echo -e "\n${GREEN}Copying libraries for Flutter development...${NC}"
-cp libraw_processor.dylib ../build/macos/Build/Products/Debug/ 2>/dev/null || true
-cp libraw.dylib ../build/macos/Build/Products/Debug/ 2>/dev/null || true
-cp libraw_processor.dylib ../build/macos/Build/Products/Release/ 2>/dev/null || true
-cp libraw.dylib ../build/macos/Build/Products/Release/ 2>/dev/null || true
 
-echo -e "${GREEN}✓ Libraries copied to Flutter build directories${NC}"
+# Create Frameworks directories if they don't exist
+if [ ! -d "$APP_BUNDLE_DEBUG" ]; then
+    mkdir -p "$APP_BUNDLE_DEBUG"
+fi
+if [ ! -d "$APP_BUNDLE_RELEASE" ]; then
+    mkdir -p "$APP_BUNDLE_RELEASE"
+fi
+
+# Copy both libraries to the app bundle Frameworks directory
+cp libraw_processor.dylib "$APP_BUNDLE_DEBUG/" 2>/dev/null || true
+cp libraw.dylib "$APP_BUNDLE_DEBUG/" 2>/dev/null || true
+cp libraw_processor.dylib "$APP_BUNDLE_RELEASE/" 2>/dev/null || true
+cp libraw.dylib "$APP_BUNDLE_RELEASE/" 2>/dev/null || true
+
+# Verify the libraries in the app bundle have correct paths
+if [ -f "$APP_BUNDLE_DEBUG/libraw_processor.dylib" ]; then
+    echo -e "\n${YELLOW}Verifying Debug bundle library paths:${NC}"
+    otool -L "$APP_BUNDLE_DEBUG/libraw_processor.dylib" | head -5
+    
+    # Check if it's still pointing to Homebrew path
+    if otool -L "$APP_BUNDLE_DEBUG/libraw_processor.dylib" | grep -q "/opt/homebrew\|/usr/local"; then
+        echo -e "${RED}WARNING: Library still has Homebrew dependencies!${NC}"
+        echo -e "${YELLOW}Re-run this script to fix the paths.${NC}"
+    else
+        echo -e "${GREEN}✓ Library paths look correct${NC}"
+    fi
+fi
+
+echo -e "${GREEN}✓ Libraries copied to app bundle Frameworks${NC}"
+echo -e "  Debug: $APP_BUNDLE_DEBUG"
+echo -e "  Release: $APP_BUNDLE_RELEASE"
 echo -e "\n${YELLOW}You can now run: flutter run -d macos${NC}"
