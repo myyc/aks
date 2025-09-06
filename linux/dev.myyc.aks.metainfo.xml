@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.myyc.aks</id>
+  
+  <name>aks</name>
+  <summary>Professional RAW photo editor with non-destructive editing</summary>
+  
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  
+  <description>
+    <p>
+      aks is a professional-grade photo editor built with Flutter, designed for photographers who need powerful RAW processing capabilities with a clean, intuitive interface.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>RAW file support (CR2, NEF, ARW, DNG, and more via LibRaw)</li>
+      <li>Non-destructive editing with sidecar files</li>
+      <li>Professional tone curves with per-channel control</li>
+      <li>White balance, exposure, and color grading tools</li>
+      <li>Highlights/shadows recovery</li>
+      <li>Advanced cropping with aspect ratio presets</li>
+      <li>Real-time histogram with RGB channels</li>
+      <li>Undo/redo with full history tracking</li>
+      <li>Before/after comparison view</li>
+      <li>Export to JPEG/PNG with quality control</li>
+      <li>GPU-accelerated processing</li>
+    </ul>
+  </description>
+  
+  <launchable type="desktop-id">dev.myyc.aks.desktop</launchable>
+  
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main editing interface with adjustments panel</caption>
+      <image>https://raw.githubusercontent.com/myyc/aks/main/screenshots/main.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Tone curves editor</caption>
+      <image>https://raw.githubusercontent.com/myyc/aks/main/screenshots/curves.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Crop tool with aspect ratios</caption>
+      <image>https://raw.githubusercontent.com/myyc/aks/main/screenshots/crop.png</image>
+    </screenshot>
+  </screenshots>
+  
+  <url type="homepage">https://github.com/myyc/aks</url>
+  <url type="bugtracker">https://github.com/myyc/aks/issues</url>
+  <url type="vcs-browser">https://github.com/myyc/aks</url>
+  
+  <developer id="dev.myyc">
+    <name>myyc</name>
+  </developer>
+  
+  <provides>
+    <binary>aks</binary>
+    <mediatype>image/jpeg</mediatype>
+    <mediatype>image/png</mediatype>
+    <mediatype>image/tiff</mediatype>
+    <mediatype>image/x-canon-cr2</mediatype>
+    <mediatype>image/x-canon-crw</mediatype>
+    <mediatype>image/x-nikon-nef</mediatype>
+    <mediatype>image/x-sony-arw</mediatype>
+    <mediatype>image/x-adobe-dng</mediatype>
+    <mediatype>image/x-panasonic-raw</mediatype>
+  </provides>
+  
+  <releases>
+    <release version="0.0.1" date="2025-09-06">
+      <description>
+        <p>Alpha release with core editing features</p>
+        <ul>
+          <li>RAW processing with LibRaw</li>
+          <li>Non-destructive editing pipeline</li>
+          <li>Professional adjustment tools</li>
+          <li>Tone curves with Catmull-Rom interpolation</li>
+          <li>Advanced cropping</li>
+          <li>History and undo/redo</li>
+          <li>Before/after comparison</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+  
+  <content_rating type="oars-1.1"/>
+  
+  <kudos>
+    <kudo>HiDpiIcon</kudo>
+    <kudo>ModernToolkit</kudo>
+  </kudos>
+</component>

@@ -1,0 +1,120 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Native library build artifacts
+*.so
+*.o
+*.a
+linux/build/
+linux/libraw_processor.so
+linux/libvulkan_processor.so
+
+# Shader compilation artifacts
+*.spv
+linux/vulkan_processor/shaders/*.spv
+linux/build/shaders/
+
+# Flatpak build artifacts
+.flatpak-builder/
+build-dir/
+repo/
+*.flatpak
+.flatpak
+
+# CMake build files
+linux/CMakeCache.txt
+linux/CMakeFiles/
+linux/cmake_install.cmake
+linux/Makefile
+linux/compile_commands.json
+linux/install_manifest.txt
+
+# Test artifacts
+test/fixtures/*.jpg
+test/fixtures/*.png
+test/fixtures/*.jpeg
+
+# Editor and IDE
+.vscode/
+*.code-workspace
+.idea/
+*.swp
+*.swo
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Application runtime files
+.config/
+.local/
+
+# Claude AI
+.claude/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Log files
+*.log
+logs/
+
+# Generated files that shouldn't be committed
+linux/flutter/ephemeral/
+
+# Keep test fixtures source files
+!test/fixtures/*.arw
+!test/fixtures/*.cr2
+!test/fixtures/*.nef
+!test/fixtures/*.dng
+
+ROADMAP.md

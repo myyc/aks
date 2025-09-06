@@ -1,0 +1,125 @@
+app-id: dev.myyc.aks
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+command: aks
+finish-args:
+  # X11 + XShm access
+  - --socket=x11
+  - --share=ipc
+  # Wayland access
+  - --socket=wayland
+  # OpenGL access for rendering
+  - --device=dri
+  # DBus access for file chooser and desktop integration
+  - --socket=session-bus
+  # Filesystem access for loading and saving photos
+  - --filesystem=home
+  - --filesystem=xdg-pictures
+  - --filesystem=xdg-documents
+  - --filesystem=xdg-download
+  # For file chooser portal
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --talk-name=org.freedesktop.portal.FileChooser
+  # For notifications (export completion)
+  - --talk-name=org.freedesktop.Notifications
+
+modules:
+  # libjpeg-turbo for JPEG support
+  - name: libjpeg-turbo
+    buildsystem: cmake-ninja
+    sources:
+      - type: archive
+        url: https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.1.2.tar.gz
+        sha256: 560f6338b547544c4f9721b18d8b87685d433ec78b3c644c70d77adad22c55e6
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_PREFIX=/app
+
+  # Little CMS for color management
+  - name: lcms2
+    buildsystem: autotools
+    sources:
+      - type: archive
+        url: https://github.com/mm2/Little-CMS/archive/refs/tags/lcms2.17.tar.gz
+        sha256: 6e6f6411db50e85ae8ff7777f01b2da0614aac13b7b9fcbea66dc56a1bc71418
+    config-opts:
+      - --prefix=/app
+
+  # LibRaw for RAW image processing (static library)
+  - name: libraw
+    buildsystem: autotools
+    sources:
+      - type: archive
+        url: https://www.libraw.org/data/LibRaw-0.21.3.tar.gz
+        sha256: dba34b7fc1143503942fa32ad9db43e94f714e62a4a856e91617f8f3e1e0aa5c
+    config-opts:
+      - --enable-static
+      - --disable-shared
+      - --disable-examples
+      - --disable-openmp
+      - --prefix=/app
+      - CXXFLAGS=-fPIC
+      - CFLAGS=-fPIC
+
+  - name: aks
+    buildsystem: simple
+    sources:
+      - type: dir
+        path: .
+        # Only include the built application, not source
+        skip:
+          - .git
+          - .dart_tool
+          - .idea
+          - flatpak-flutter
+          - build-dir
+          - repo
+          - "*.md"
+          - "*.yaml"
+          - "*.yml"
+          - "*.flatpak"
+          - lib
+          - test
+          - android
+          - ios
+          - macos
+          - windows
+          - web
+    build-commands:
+      # Verify the app was pre-built
+      - test -f build/linux/x64/release/bundle/aks || (echo "Error: Please run 'flutter build linux --release' first" && exit 1)
+
+      # Build raw_processor library with statically linked LibRaw
+      - echo "Building raw_processor with static LibRaw..."
+      - |
+        gcc -shared -fPIC -o libraw_processor.so \
+          linux/raw_processor/raw_processor.c \
+          -I/app/include \
+          -L/app/lib \
+          -Wl,-Bstatic -lraw -Wl,-Bdynamic \
+          -lstdc++ -ljpeg -llcms2 -lz -lm -lpthread
+
+      # Note: vulkan_processor and shaders are pre-built during 'flutter build linux --release'
+      # The Flatpak just packages them from the bundle
+
+      # Install the binary to /app/bin
+      - install -Dm755 build/linux/x64/release/bundle/aks /app/bin/aks
+
+      # Copy lib and data directories maintaining structure
+      - cp -r build/linux/x64/release/bundle/lib /app/bin/
+      - cp -r build/linux/x64/release/bundle/data /app/bin/
+
+      # Replace the dynamically linked raw_processor with our statically linked version
+      - cp libraw_processor.so /app/bin/lib/libraw_processor.so
+
+      # Note: vulkan_processor and shaders are already in the bundle from the Flutter build
+
+      # Install desktop file
+      - install -Dm644 linux/aks.desktop /app/share/applications/dev.myyc.aks.desktop
+
+      # Install icon
+      - install -Dm644 linux/aks.png /app/share/icons/hicolor/256x256/apps/dev.myyc.aks.png
+
+      # Install AppStream metadata
+      - install -Dm644 linux/dev.myyc.aks.metainfo.xml /app/share/metainfo/dev.myyc.aks.metainfo.xml

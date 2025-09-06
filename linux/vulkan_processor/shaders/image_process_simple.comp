@@ -1,0 +1,157 @@
+#version 450
+
+// Workgroup size
+layout (local_size_x = 16, local_size_y = 16) in;
+
+// Input/output buffers as uint arrays (we'll extract bytes manually)
+layout (std430, binding = 0) readonly buffer InputBuffer {
+    uint data[];
+} inputBuffer;
+
+layout (std430, binding = 1) buffer OutputBuffer {
+    uint data[];
+} outputBuffer;
+
+// Adjustment parameters (uniform buffer)
+layout (binding = 2) uniform AdjustmentParams {
+    float temperature;
+    float tint;
+    float exposure;
+    float contrast;
+    float highlights;
+    float shadows;
+    float blacks;
+    float whites;
+    float saturation;
+    float vibrance;
+    float toneCurveEnabled;
+    float imageWidth;
+    float imageHeight;
+    float padding[3];
+} params;
+
+// Extract byte from uint array
+uint getByte(uint idx) {
+    uint wordIdx = idx / 4;
+    uint byteIdx = idx % 4;
+    uint word = inputBuffer.data[wordIdx];
+    return (word >> (byteIdx * 8)) & 0xFF;
+}
+
+// Write byte to uint array
+void setByte(uint idx, uint value) {
+    uint wordIdx = idx / 4;
+    uint byteIdx = idx % 4;
+    uint shift = byteIdx * 8;
+    uint mask = ~(0xFF << shift);
+    
+    atomicAnd(outputBuffer.data[wordIdx], mask);
+    atomicOr(outputBuffer.data[wordIdx], (value & 0xFF) << shift);
+}
+
+// Helper functions
+vec3 applyWhiteBalance(vec3 color, float temperature, float tint) {
+    float tempScale = (temperature - 5500.0) / 5500.0;
+    color.r *= 1.0 + tempScale * 0.5;
+    color.b *= 1.0 - tempScale * 0.5;
+    
+    float tintScale = tint / 150.0;
+    color.g *= 1.0 - abs(tintScale) * 0.3;
+    if (tintScale > 0) {
+        color.r *= 1.0 + tintScale * 0.2;
+        color.b *= 1.0 + tintScale * 0.2;
+    }
+    
+    return color;
+}
+
+vec3 applyExposure(vec3 color, float exposure) {
+    return color * pow(2.0, exposure);
+}
+
+vec3 applyContrast(vec3 color, float contrast) {
+    float factor = (100.0 + contrast) / 100.0;
+    return (color - 0.5) * factor + 0.5;
+}
+
+vec3 applyHighlightsShadows(vec3 color, float highlights, float shadows) {
+    float luminance = dot(color, vec3(0.299, 0.587, 0.114));
+    
+    if (shadows != 0.0 && luminance < 0.5) {
+        float shadowFactor = 1.0 + (shadows / 100.0) * (1.0 - luminance * 2.0);
+        color *= shadowFactor;
+    }
+    
+    if (highlights != 0.0 && luminance > 0.5) {
+        float highlightFactor = 1.0 + (highlights / 100.0) * ((luminance - 0.5) * 2.0);
+        color *= highlightFactor;
+    }
+    
+    return color;
+}
+
+vec3 applyBlacksWhites(vec3 color, float blacks, float whites) {
+    float blackPoint = blacks > 0 ? blacks * 0.005 : blacks * 0.003;
+    float whitePoint = 1.0 + (whites > 0 ? whites * 0.005 : whites * 0.003);
+    
+    return (color - blackPoint) / (whitePoint - blackPoint);
+}
+
+vec3 applySaturationVibrance(vec3 color, float saturation, float vibrance) {
+    float gray = dot(color, vec3(0.299, 0.587, 0.114));
+    
+    if (saturation != 0.0) {
+        float satFactor = (100.0 + saturation) / 100.0;
+        color = mix(vec3(gray), color, satFactor);
+    }
+    
+    if (vibrance != 0.0) {
+        float maxChannel = max(max(color.r, color.g), color.b);
+        float minChannel = min(min(color.r, color.g), color.b);
+        float sat = maxChannel - minChannel;
+        float vibFactor = (100.0 + vibrance * (1.0 - sat)) / 100.0;
+        color = mix(vec3(gray), color, vibFactor);
+    }
+    
+    return color;
+}
+
+void main() {
+    uvec2 pos = gl_GlobalInvocationID.xy;
+    
+    uint width = uint(params.imageWidth);
+    uint height = uint(params.imageHeight);
+    
+    // Check bounds
+    if (pos.x >= width || pos.y >= height) {
+        return;
+    }
+    
+    // Calculate buffer indices
+    uint pixelIndex = pos.y * width + pos.x;
+    uint inputIdx = pixelIndex * 3; // RGB
+    uint outputIdx = pixelIndex * 4; // RGBA
+    
+    // Read RGB from input
+    vec3 color;
+    color.r = float(getByte(inputIdx + 0)) / 255.0;
+    color.g = float(getByte(inputIdx + 1)) / 255.0;
+    color.b = float(getByte(inputIdx + 2)) / 255.0;
+    
+    // Apply adjustments
+    color = applyWhiteBalance(color, params.temperature, params.tint);
+    color = applyExposure(color, params.exposure);
+    color = applyContrast(color, params.contrast);
+    color = applyHighlightsShadows(color, params.highlights, params.shadows);
+    color = applyBlacksWhites(color, params.blacks, params.whites);
+    color = applySaturationVibrance(color, params.saturation, params.vibrance);
+    
+    // Clamp to valid range
+    color = clamp(color, 0.0, 1.0);
+    
+    // Write RGBA to output
+    setByte(outputIdx + 0, uint(color.r * 255.0));
+    setByte(outputIdx + 1, uint(color.g * 255.0));
+    setByte(outputIdx + 2, uint(color.b * 255.0));
+    setByte(outputIdx + 3, 255);
+}

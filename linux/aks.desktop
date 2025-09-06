@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=aks
+Comment=Professional RAW photo editor
+Exec=aks
+Icon=dev.myyc.aks
+Terminal=false
+Categories=Graphics;Photography;RasterGraphics;
+StartupWMClass=aks
+MimeType=image/jpeg;image/png;image/tiff;image/x-canon-cr2;image/x-canon-crw;image/x-nikon-nef;image/x-sony-arw;image/x-adobe-dng;image/x-panasonic-raw;
