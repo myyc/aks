@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -22,6 +23,8 @@ class EditorScreen extends StatefulWidget {
 class _EditorScreenState extends State<EditorScreen> {
   final FocusNode _focusNode = FocusNode();
   bool _isPickingFile = false;
+  bool _showCurrentDimensions = false;
+  Timer? _dimensionsTimer;
   
   @override
   void initState() {
@@ -35,7 +38,110 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void dispose() {
     _focusNode.dispose();
+    _dimensionsTimer?.cancel();
     super.dispose();
+  }
+  
+  String _getAspectRatioString(int width, int height) {
+    if (width == 0 || height == 0) return '';
+    
+    final ratio = width / height;
+    
+    // Check for common aspect ratios with 0.5% tolerance
+    // This accounts for slight variations in sensor sizes (e.g., Sony 6024x4024)
+    const tolerance = 0.005;
+    
+    // Common photographic and video aspect ratios
+    if ((ratio - 1.0).abs() < tolerance) return '1:1 (Square)';
+    if ((ratio - 1.5).abs() < tolerance) return '3:2 (35mm)';
+    if ((ratio - 0.6667).abs() < tolerance) return '2:3 (35mm Portrait)';
+    if ((ratio - 1.3333).abs() < tolerance) return '4:3 (Four Thirds)';
+    if ((ratio - 0.75).abs() < tolerance) return '3:4 (Four Thirds Portrait)';
+    if ((ratio - 1.7778).abs() < tolerance) return '16:9 (HD Video)';
+    if ((ratio - 0.5625).abs() < tolerance) return '9:16 (Story/Reel)';
+    if ((ratio - 1.25).abs() < tolerance) return '5:4 (Large Format)';
+    if ((ratio - 0.8).abs() < tolerance) return '4:5 (Large Format Portrait)';
+    if ((ratio - 1.4).abs() < tolerance) return '7:5 (5×7 Print)';
+    if ((ratio - 0.7143).abs() < tolerance) return '5:7 (5×7 Portrait)';
+    if ((ratio - 1.1667).abs() < tolerance) return '7:6 (6×7 Medium)';
+    if ((ratio - 0.8571).abs() < tolerance) return '6:7 (6×7 Portrait)';
+    if ((ratio - 2.35).abs() < tolerance * 10) return '2.35:1 (Cinemascope)';
+    if ((ratio - 2.7083).abs() < tolerance * 10) return '65:24 (Xpan)';
+    
+    // For non-standard ratios, show as decimal with smaller side as 1
+    if (width > height) {
+      // Landscape - height is 1
+      return '${ratio.toStringAsFixed(2)}:1';
+    } else {
+      // Portrait - width is 1
+      final invRatio = height / width;
+      return '1:${invRatio.toStringAsFixed(2)}';
+    }
+  }
+  
+  Widget _buildDimensionsOverlay(ImageState imageState, {required bool isOriginal}) {
+    // Use actual full resolution dimensions, not the preview image dimensions
+    final int? width;
+    final int? height;
+    
+    if (isOriginal) {
+      width = imageState.originalWidth;
+      height = imageState.originalHeight;
+    } else {
+      width = imageState.actualCurrentWidth;
+      height = imageState.actualCurrentHeight;
+    }
+    
+    if (width == null || height == null) return const SizedBox.shrink();
+    
+    final aspectRatio = _getAspectRatioString(width, height);
+    
+    return Positioned(
+      top: 20,
+      left: 20,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.75),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.white.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              isOriginal ? 'ORIGINAL' : 'CURRENT',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${width} × ${height}px',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (aspectRatio.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                aspectRatio,
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 12,
+                ),
+              ),
+            ]
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -153,8 +259,25 @@ class _EditorScreenState extends State<EditorScreen> {
             if (imageState.hasImage) {
               if (event is RawKeyDownEvent) {
                 imageState.setShowOriginal(true);
+                // Cancel any existing timer when pressing space
+                _dimensionsTimer?.cancel();
+                setState(() {
+                  _showCurrentDimensions = false;
+                });
               } else if (event is RawKeyUpEvent) {
                 imageState.setShowOriginal(false);
+                // Show current dimensions briefly after releasing space
+                setState(() {
+                  _showCurrentDimensions = true;
+                });
+                _dimensionsTimer?.cancel();
+                _dimensionsTimer = Timer(const Duration(seconds: 2), () {
+                  if (mounted) {
+                    setState(() {
+                      _showCurrentDimensions = false;
+                    });
+                  }
+                });
               }
             }
           }
@@ -195,29 +318,12 @@ class _EditorScreenState extends State<EditorScreen> {
                                 },
                               ),
                             ),
-                            // Original indicator overlay
+                            // Dimensions overlay - show original when space is pressed
                             if (imageState.showOriginal && imageState.hasImage)
-                              Positioned(
-                                top: 20,
-                                left: 20,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.7),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(color: Colors.white.withOpacity(0.3)),
-                                  ),
-                                  child: const Text(
-                                    'ORIGINAL',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                              _buildDimensionsOverlay(imageState, isOriginal: true),
+                            // Show current dimensions briefly after releasing space
+                            if (_showCurrentDimensions && !imageState.showOriginal && imageState.hasImage)
+                              _buildDimensionsOverlay(imageState, isOriginal: false),
                           ],
                         ),
                       ),

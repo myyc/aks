@@ -186,7 +186,8 @@ class _ImageViewerState extends State<ImageViewer> {
             }
             
             // Calculate the actual displayed size of the image
-            final imageToMeasure = imageState.currentImage;
+            // Use the image that's actually being displayed
+            final imageToMeasure = imageState.getDisplayImage(cropState.isActive);
             final imageAspectRatio = imageToMeasure!.width / imageToMeasure.height;
             final viewportAspectRatio = constraints.maxWidth / constraints.maxHeight;
             
@@ -311,6 +312,10 @@ class _ImageViewerState extends State<ImageViewer> {
                               if (cropState.isActive)
                                 CropOverlay(
                                   imageSize: Size(displayWidth, displayHeight),
+                                  originalImageSize: Size(
+                                    (imageState.originalWidth ?? displayWidth).toDouble(),
+                                    (imageState.originalHeight ?? displayHeight).toDouble(),
+                                  ),
                                   onScroll: (event) {
                                     // Manually handle scroll events for zooming
                                     _handlePointerSignal(event);
@@ -342,7 +347,10 @@ class _ImageViewerState extends State<ImageViewer> {
                                 underline: const SizedBox.shrink(),
                                 onChanged: (preset) {
                                   if (preset != null) {
-                                    cropState.setAspectRatioPreset(preset, displayWidth, displayHeight);
+                                    // Use original dimensions for precise aspect ratio
+                                    final origWidth = imageState.originalWidth?.toDouble() ?? displayWidth;
+                                    final origHeight = imageState.originalHeight?.toDouble() ?? displayHeight;
+                                    cropState.setAspectRatioPreset(preset, origWidth, origHeight);
                                   }
                                 },
                                 items: AspectRatioPreset.values.map((preset) {
@@ -358,7 +366,12 @@ class _ImageViewerState extends State<ImageViewer> {
                                 Material(
                                   color: Colors.transparent,
                                   child: InkWell(
-                                    onTap: () => cropState.toggleOrientation(displayWidth, displayHeight),
+                                    onTap: () {
+                                      // Use original dimensions for precise orientation toggle
+                                      final origWidth = imageState.originalWidth?.toDouble() ?? displayWidth;
+                                      final origHeight = imageState.originalHeight?.toDouble() ?? displayHeight;
+                                      cropState.toggleOrientation(origWidth, origHeight);
+                                    },
                                     borderRadius: BorderRadius.circular(4),
                                     child: Container(
                                       padding: const EdgeInsets.all(6),

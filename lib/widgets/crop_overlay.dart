@@ -6,12 +6,14 @@ import '../theme/text_styles.dart';
 import '../models/crop_state.dart';
 
 class CropOverlay extends StatefulWidget {
-  final Size imageSize;
+  final Size imageSize;  // Display size on screen
+  final Size originalImageSize;  // Original full resolution size for calculations
   final Function(PointerScrollEvent)? onScroll;
   
   const CropOverlay({
     Key? key,
     required this.imageSize,
+    required this.originalImageSize,
     this.onScroll,
   }) : super(key: key);
   
@@ -66,8 +68,9 @@ class _CropOverlayState extends State<CropOverlay> {
   }
   
   Widget _buildInteractiveCropArea(CropState cropState) {
+    // The crop rect is normalized (0-1), so we convert to display pixels for positioning
     final rect = cropState.cropRect.toPixelRect(
-      widget.imageSize.width,
+      widget.imageSize.width,  // Use display size for visual positioning
       widget.imageSize.height,
     );
     
@@ -270,6 +273,8 @@ class _CropOverlayState extends State<CropOverlay> {
     if (_dragStart == null || _initialCropRect == null || _dragHandle == null) return;
     
     final delta = details.localPosition - _dragStart!;
+    // Scale delta from display space to normalized space
+    // The drag happens in display coordinates, so normalize using display size
     final dx = delta.dx / widget.imageSize.width;
     final dy = delta.dy / widget.imageSize.height;
     
@@ -282,22 +287,22 @@ class _CropOverlayState extends State<CropOverlay> {
         : null;
     
     if (hasAspectRatio && targetRatio != null) {
-      // FOR ASPECT RATIO PRESETS - CALCULATE IN PIXEL SPACE FOR ACTUAL ASPECT RATIO
+      // FOR ASPECT RATIO PRESETS - CALCULATE IN ORIGINAL IMAGE PIXEL SPACE FOR ACTUAL ASPECT RATIO
       switch (_dragHandle) {
         case 'top-left':
-          // Move left edge, calculate everything IN PIXELS for true aspect ratio
+          // Move left edge, calculate everything IN ORIGINAL PIXELS for true aspect ratio
           final newLeft = (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05);
           
-          // Convert to PIXELS
-          final pixelLeft = newLeft * widget.imageSize.width;
-          final pixelRight = _initialCropRect!.right * widget.imageSize.width;
+          // Convert to ORIGINAL PIXELS for precise calculations
+          final pixelLeft = newLeft * widget.originalImageSize.width;
+          final pixelRight = _initialCropRect!.right * widget.originalImageSize.width;
           final pixelWidth = pixelRight - pixelLeft;
           
-          // Calculate height IN PIXELS to maintain aspect ratio
+          // Calculate height IN ORIGINAL PIXELS to maintain aspect ratio
           final pixelHeight = pixelWidth / targetRatio;
           
-          // Convert back to normalized
-          final normalizedHeight = pixelHeight / widget.imageSize.height;
+          // Convert back to normalized using original dimensions
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
           
           newRect = CropRect(
             left: newLeft,
@@ -307,19 +312,19 @@ class _CropOverlayState extends State<CropOverlay> {
           );
           break;
         case 'top-right':
-          // Move right edge, calculate everything IN PIXELS for true aspect ratio
+          // Move right edge, calculate everything IN ORIGINAL PIXELS for true aspect ratio
           final newRight = (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0);
           
-          // Convert to PIXELS
-          final pixelLeft = _initialCropRect!.left * widget.imageSize.width;
-          final pixelRight = newRight * widget.imageSize.width;
+          // Convert to ORIGINAL PIXELS
+          final pixelLeft = _initialCropRect!.left * widget.originalImageSize.width;
+          final pixelRight = newRight * widget.originalImageSize.width;
           final pixelWidth = pixelRight - pixelLeft;
           
-          // Calculate height IN PIXELS to maintain aspect ratio
+          // Calculate height IN ORIGINAL PIXELS to maintain aspect ratio
           final pixelHeight = pixelWidth / targetRatio;
           
           // Convert back to normalized
-          final normalizedHeight = pixelHeight / widget.imageSize.height;
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
           
           newRect = CropRect(
             left: _initialCropRect!.left,
@@ -333,15 +338,15 @@ class _CropOverlayState extends State<CropOverlay> {
           final newLeft = (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05);
           
           // Convert to PIXELS
-          final pixelLeft = newLeft * widget.imageSize.width;
-          final pixelRight = _initialCropRect!.right * widget.imageSize.width;
+          final pixelLeft = newLeft * widget.originalImageSize.width;
+          final pixelRight = _initialCropRect!.right * widget.originalImageSize.width;
           final pixelWidth = pixelRight - pixelLeft;
           
           // Calculate height IN PIXELS to maintain aspect ratio
           final pixelHeight = pixelWidth / targetRatio;
           
           // Convert back to normalized
-          final normalizedHeight = pixelHeight / widget.imageSize.height;
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
           
           newRect = CropRect(
             left: newLeft,
@@ -355,15 +360,15 @@ class _CropOverlayState extends State<CropOverlay> {
           final newRight = (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0);
           
           // Convert to PIXELS
-          final pixelLeft = _initialCropRect!.left * widget.imageSize.width;
-          final pixelRight = newRight * widget.imageSize.width;
+          final pixelLeft = _initialCropRect!.left * widget.originalImageSize.width;
+          final pixelRight = newRight * widget.originalImageSize.width;
           final pixelWidth = pixelRight - pixelLeft;
           
           // Calculate height IN PIXELS to maintain aspect ratio
           final pixelHeight = pixelWidth / targetRatio;
           
           // Convert back to normalized
-          final normalizedHeight = pixelHeight / widget.imageSize.height;
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
           
           newRect = CropRect(
             left: _initialCropRect!.left,
@@ -377,11 +382,11 @@ class _CropOverlayState extends State<CropOverlay> {
           final newTop = (_initialCropRect!.top + dy).clamp(0.0, _initialCropRect!.bottom - 0.05);
           
           // Convert to PIXELS
-          final pixelHeight = (_initialCropRect!.bottom - newTop) * widget.imageSize.height;
+          final pixelHeight = (_initialCropRect!.bottom - newTop) * widget.originalImageSize.height;
           final pixelWidth = pixelHeight * targetRatio;
           
           // Convert back to normalized
-          final normalizedWidth = pixelWidth / widget.imageSize.width;
+          final normalizedWidth = pixelWidth / widget.originalImageSize.width;
           final widthDiff = normalizedWidth - _initialCropRect!.width;
           
           newRect = CropRect(
@@ -396,11 +401,11 @@ class _CropOverlayState extends State<CropOverlay> {
           final newBottom = (_initialCropRect!.bottom + dy).clamp(_initialCropRect!.top + 0.05, 1.0);
           
           // Convert to PIXELS
-          final pixelHeight = (newBottom - _initialCropRect!.top) * widget.imageSize.height;
+          final pixelHeight = (newBottom - _initialCropRect!.top) * widget.originalImageSize.height;
           final pixelWidth = pixelHeight * targetRatio;
           
           // Convert back to normalized
-          final normalizedWidth = pixelWidth / widget.imageSize.width;
+          final normalizedWidth = pixelWidth / widget.originalImageSize.width;
           final widthDiff = normalizedWidth - _initialCropRect!.width;
           
           newRect = CropRect(
@@ -415,11 +420,11 @@ class _CropOverlayState extends State<CropOverlay> {
           final newLeft = (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05);
           
           // Convert to PIXELS
-          final pixelWidth = (_initialCropRect!.right - newLeft) * widget.imageSize.width;
+          final pixelWidth = (_initialCropRect!.right - newLeft) * widget.originalImageSize.width;
           final pixelHeight = pixelWidth / targetRatio;
           
           // Convert back to normalized
-          final normalizedHeight = pixelHeight / widget.imageSize.height;
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
           final heightDiff = normalizedHeight - _initialCropRect!.height;
           
           newRect = CropRect(
@@ -434,11 +439,11 @@ class _CropOverlayState extends State<CropOverlay> {
           final newRight = (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0);
           
           // Convert to PIXELS
-          final pixelWidth = (newRight - _initialCropRect!.left) * widget.imageSize.width;
+          final pixelWidth = (newRight - _initialCropRect!.left) * widget.originalImageSize.width;
           final pixelHeight = pixelWidth / targetRatio;
           
           // Convert back to normalized
-          final normalizedHeight = pixelHeight / widget.imageSize.height;
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
           final heightDiff = normalizedHeight - _initialCropRect!.height;
           
           newRect = CropRect(
@@ -520,7 +525,8 @@ class _CropOverlayState extends State<CropOverlay> {
       newRect = _clampToImageBounds(newRect);
     }
     
-    cropState.updateCropRectWithDimensions(newRect, widget.imageSize.width, widget.imageSize.height);
+    // Update crop rect using original dimensions for precision
+    cropState.updateCropRectWithDimensions(newRect, widget.originalImageSize.width, widget.originalImageSize.height);
   }
   
   void _onPanEnd() {
@@ -642,10 +648,10 @@ class _CropOverlayState extends State<CropOverlay> {
     bottom = bottom.clamp(0.0, 1.0);
     
     // Convert to pixels to maintain actual aspect ratio
-    final pixelLeft = left * widget.imageSize.width;
-    final pixelRight = right * widget.imageSize.width;
-    final pixelTop = top * widget.imageSize.height;
-    final pixelBottom = bottom * widget.imageSize.height;
+    final pixelLeft = left * widget.originalImageSize.width;
+    final pixelRight = right * widget.originalImageSize.width;
+    final pixelTop = top * widget.originalImageSize.height;
+    final pixelBottom = bottom * widget.originalImageSize.height;
     
     double pixelWidth = pixelRight - pixelLeft;
     double pixelHeight = pixelBottom - pixelTop;
@@ -661,12 +667,12 @@ class _CropOverlayState extends State<CropOverlay> {
     pixelHeight = pixelWidth / targetRatio;
     
     // Check if it fits, if not scale down
-    if (pixelHeight > widget.imageSize.height) {
-      pixelHeight = widget.imageSize.height;
+    if (pixelHeight > widget.originalImageSize.height) {
+      pixelHeight = widget.originalImageSize.height;
       pixelWidth = pixelHeight * targetRatio;
     }
-    if (pixelWidth > widget.imageSize.width) {
-      pixelWidth = widget.imageSize.width;
+    if (pixelWidth > widget.originalImageSize.width) {
+      pixelWidth = widget.originalImageSize.width;
       pixelHeight = pixelWidth / targetRatio;
     }
     
@@ -680,22 +686,22 @@ class _CropOverlayState extends State<CropOverlay> {
     
     if (pixelCenterX - pixelWidth/2 < 0) {
       finalCenterX = pixelWidth/2;
-    } else if (pixelCenterX + pixelWidth/2 > widget.imageSize.width) {
-      finalCenterX = widget.imageSize.width - pixelWidth/2;
+    } else if (pixelCenterX + pixelWidth/2 > widget.originalImageSize.width) {
+      finalCenterX = widget.originalImageSize.width - pixelWidth/2;
     }
     
     if (pixelCenterY - pixelHeight/2 < 0) {
       finalCenterY = pixelHeight/2;
-    } else if (pixelCenterY + pixelHeight/2 > widget.imageSize.height) {
-      finalCenterY = widget.imageSize.height - pixelHeight/2;
+    } else if (pixelCenterY + pixelHeight/2 > widget.originalImageSize.height) {
+      finalCenterY = widget.originalImageSize.height - pixelHeight/2;
     }
     
     // Convert back to normalized
     return CropRect(
-      left: ((finalCenterX - pixelWidth/2) / widget.imageSize.width).clamp(0.0, 1.0),
-      top: ((finalCenterY - pixelHeight/2) / widget.imageSize.height).clamp(0.0, 1.0),
-      right: ((finalCenterX + pixelWidth/2) / widget.imageSize.width).clamp(0.0, 1.0),
-      bottom: ((finalCenterY + pixelHeight/2) / widget.imageSize.height).clamp(0.0, 1.0),
+      left: ((finalCenterX - pixelWidth/2) / widget.originalImageSize.width).clamp(0.0, 1.0),
+      top: ((finalCenterY - pixelHeight/2) / widget.originalImageSize.height).clamp(0.0, 1.0),
+      right: ((finalCenterX + pixelWidth/2) / widget.originalImageSize.width).clamp(0.0, 1.0),
+      bottom: ((finalCenterY + pixelHeight/2) / widget.originalImageSize.height).clamp(0.0, 1.0),
     );
   }
 }

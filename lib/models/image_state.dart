@@ -22,6 +22,8 @@ class ImageState extends ChangeNotifier {
   RawPixelData? _previewData;
   RawPixelData? _originalRawData;  // Keep original uncropped raw data
   RawPixelData? _originalPreviewData;  // Keep original uncropped preview data
+  int? _originalWidth;  // Original image width for precise crop calculations
+  int? _originalHeight;  // Original image height for precise crop calculations
   String? _currentFilePath;
   bool _isLoading = false;
   bool _isProcessing = false;
@@ -65,6 +67,33 @@ class ImageState extends ChangeNotifier {
   HistoryManager get historyManager => _historyManager;
   bool get showOriginal => _showOriginal;
   bool get hasCrop => _hasCrop;
+  int? get originalWidth => _originalWidth;
+  int? get originalHeight => _originalHeight;
+  
+  // Get actual dimensions at full resolution (accounting for crop)
+  int? get actualCurrentWidth {
+    if (_originalWidth == null) return null;
+    if (_pipeline.cropRect == null || 
+        (_pipeline.cropRect!.left == 0 && _pipeline.cropRect!.top == 0 &&
+         _pipeline.cropRect!.right == 1 && _pipeline.cropRect!.bottom == 1)) {
+      return _originalWidth;
+    }
+    // Calculate cropped width from original dimensions
+    final cropWidth = (_pipeline.cropRect!.right - _pipeline.cropRect!.left) * _originalWidth!;
+    return cropWidth.round();
+  }
+  
+  int? get actualCurrentHeight {
+    if (_originalHeight == null) return null;
+    if (_pipeline.cropRect == null || 
+        (_pipeline.cropRect!.left == 0 && _pipeline.cropRect!.top == 0 &&
+         _pipeline.cropRect!.right == 1 && _pipeline.cropRect!.bottom == 1)) {
+      return _originalHeight;
+    }
+    // Calculate cropped height from original dimensions
+    final cropHeight = (_pipeline.cropRect!.bottom - _pipeline.cropRect!.top) * _originalHeight!;
+    return cropHeight.round();
+  }
   
   // Get dimensions of the image that will be exported (accounting for crop)
   int? get exportImageWidth {
@@ -199,6 +228,8 @@ class ImageState extends ChangeNotifier {
       if (rawData != null) {
         _rawData = rawData;
         _originalRawData = rawData;  // Keep the original
+        _originalWidth = rawData.width;  // Store original dimensions
+        _originalHeight = rawData.height;
         _currentFilePath = filePath;
         
         // Generate preview data
@@ -393,6 +424,8 @@ class ImageState extends ChangeNotifier {
     _previewData = null;
     _originalRawData = null;
     _originalPreviewData = null;
+    _originalWidth = null;
+    _originalHeight = null;
     _currentFilePath = null;
     _isLoading = false;
     _isProcessing = false;
