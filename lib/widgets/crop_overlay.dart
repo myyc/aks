@@ -6,12 +6,14 @@ import '../theme/text_styles.dart';
 import '../models/crop_state.dart';
 
 class CropOverlay extends StatefulWidget {
-  final Size imageSize;
+  final Size imageSize;  // Display size on screen
+  final Size originalImageSize;  // Original full resolution size for calculations
   final Function(PointerScrollEvent)? onScroll;
   
   const CropOverlay({
     Key? key,
     required this.imageSize,
+    required this.originalImageSize,
     this.onScroll,
   }) : super(key: key);
   
@@ -23,6 +25,7 @@ class _CropOverlayState extends State<CropOverlay> {
   Offset? _dragStart;
   CropRect? _initialCropRect;
   String? _dragHandle;
+  String? _hoveredHandle;  // Track which handle is being hovered
   
   @override
   Widget build(BuildContext context) {
@@ -58,9 +61,6 @@ class _CropOverlayState extends State<CropOverlay> {
             
             // Interactive crop area
             _buildInteractiveCropArea(cropState),
-            
-            // Aspect ratio selector
-            _buildAspectRatioSelector(cropState),
           ],
         );
       },
@@ -68,8 +68,9 @@ class _CropOverlayState extends State<CropOverlay> {
   }
   
   Widget _buildInteractiveCropArea(CropState cropState) {
+    // The crop rect is normalized (0-1), so we convert to display pixels for positioning
     final rect = cropState.cropRect.toPixelRect(
-      widget.imageSize.width,
+      widget.imageSize.width,  // Use display size for visual positioning
       widget.imageSize.height,
     );
     
@@ -145,18 +146,35 @@ class _CropOverlayState extends State<CropOverlay> {
   Widget _buildHandle(String position, CropState cropState) {
     final handleSize = 20.0;
     final halfSize = handleSize / 2;
+    final isHovered = _hoveredHandle == position;
     
-    Widget handle = GestureDetector(
-      onPanStart: (details) => _onPanStart(details, cropState, position),
-      onPanUpdate: (details) => _onPanUpdate(details, cropState),
-      onPanEnd: (_) => _onPanEnd(),
-      child: Container(
-        width: handleSize,
-        height: handleSize,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.black, width: 1),
-          shape: position.contains('-') ? BoxShape.circle : BoxShape.rectangle,
+    Widget handle = MouseRegion(
+      onEnter: (_) => setState(() => _hoveredHandle = position),
+      onExit: (_) => setState(() => _hoveredHandle = null),
+      cursor: _getCursorForPosition(position),
+      child: GestureDetector(
+        onPanStart: (details) => _onPanStart(details, cropState, position),
+        onPanUpdate: (details) => _onPanUpdate(details, cropState),
+        onPanEnd: (_) => _onPanEnd(),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: handleSize * (isHovered ? 1.3 : 1.0),
+          height: handleSize * (isHovered ? 1.3 : 1.0),
+          decoration: BoxDecoration(
+            color: isHovered ? Colors.white : Colors.white.withOpacity(0.9),
+            border: Border.all(
+              color: isHovered ? Colors.white : Colors.black,
+              width: isHovered ? 2 : 1,
+            ),
+            shape: position.contains('-') ? BoxShape.circle : BoxShape.rectangle,
+            boxShadow: isHovered ? [
+              BoxShadow(
+                color: Colors.white.withOpacity(0.6),
+                blurRadius: 8,
+                spreadRadius: 2,
+              ),
+            ] : null,
+          ),
         ),
       ),
     );
@@ -222,36 +240,27 @@ class _CropOverlayState extends State<CropOverlay> {
         return const SizedBox.shrink();
     }
   }
-  
-  Widget _buildAspectRatioSelector(CropState cropState) {
-    return Positioned(
-      top: 20,
-      left: 20,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: DropdownButton<AspectRatioPreset>(
-          value: cropState.aspectRatioPreset,
-          dropdownColor: Colors.black.withOpacity(0.9),
-          style: AppTextStyles.inter(color: Colors.white),
-          underline: const SizedBox.shrink(),
-          onChanged: (preset) {
-            if (preset != null) {
-              cropState.setAspectRatioPreset(preset);
-            }
-          },
-          items: AspectRatioPreset.values.map((preset) {
-            return DropdownMenuItem(
-              value: preset,
-              child: Text(preset.label),
-            );
-          }).toList(),
-        ),
-      ),
-    );
+  SystemMouseCursor _getCursorForPosition(String position) {
+    switch (position) {
+      case 'top-left':
+        return SystemMouseCursors.resizeUpLeft;
+      case 'top-right':
+        return SystemMouseCursors.resizeUpRight;
+      case 'bottom-left':
+        return SystemMouseCursors.resizeDownLeft;
+      case 'bottom-right':
+        return SystemMouseCursors.resizeDownRight;
+      case 'top':
+      case 'bottom':
+        return SystemMouseCursors.resizeUpDown;
+      case 'left':
+      case 'right':
+        return SystemMouseCursors.resizeLeftRight;
+      case 'center':
+        return SystemMouseCursors.move;
+      default:
+        return SystemMouseCursors.basic;
+    }
   }
   
   void _onPanStart(DragStartDetails details, CropState cropState, String handle) {
@@ -264,75 +273,260 @@ class _CropOverlayState extends State<CropOverlay> {
     if (_dragStart == null || _initialCropRect == null || _dragHandle == null) return;
     
     final delta = details.localPosition - _dragStart!;
+    // Scale delta from display space to normalized space
+    // The drag happens in display coordinates, so normalize using display size
     final dx = delta.dx / widget.imageSize.width;
     final dy = delta.dy / widget.imageSize.height;
     
     CropRect newRect = _initialCropRect!;
     
-    switch (_dragHandle) {
-      case 'center':
-        // Move entire crop area
-        newRect = CropRect(
-          left: (_initialCropRect!.left + dx).clamp(0.0, 1.0 - _initialCropRect!.width),
-          top: (_initialCropRect!.top + dy).clamp(0.0, 1.0 - _initialCropRect!.height),
-          right: (_initialCropRect!.right + dx).clamp(_initialCropRect!.width, 1.0),
-          bottom: (_initialCropRect!.bottom + dy).clamp(_initialCropRect!.height, 1.0),
-        );
-        break;
-      case 'top-left':
-        newRect = _initialCropRect!.copyWith(
-          left: (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05),
-          top: (_initialCropRect!.top + dy).clamp(0.0, _initialCropRect!.bottom - 0.05),
-        );
-        break;
-      case 'top-right':
-        newRect = _initialCropRect!.copyWith(
-          right: (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0),
-          top: (_initialCropRect!.top + dy).clamp(0.0, _initialCropRect!.bottom - 0.05),
-        );
-        break;
-      case 'bottom-left':
-        newRect = _initialCropRect!.copyWith(
-          left: (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05),
-          bottom: (_initialCropRect!.bottom + dy).clamp(_initialCropRect!.top + 0.05, 1.0),
-        );
-        break;
-      case 'bottom-right':
-        newRect = _initialCropRect!.copyWith(
-          right: (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0),
-          bottom: (_initialCropRect!.bottom + dy).clamp(_initialCropRect!.top + 0.05, 1.0),
-        );
-        break;
-      case 'top':
-        newRect = _initialCropRect!.copyWith(
-          top: (_initialCropRect!.top + dy).clamp(0.0, _initialCropRect!.bottom - 0.05),
-        );
-        break;
-      case 'bottom':
-        newRect = _initialCropRect!.copyWith(
-          bottom: (_initialCropRect!.bottom + dy).clamp(_initialCropRect!.top + 0.05, 1.0),
-        );
-        break;
-      case 'left':
-        newRect = _initialCropRect!.copyWith(
-          left: (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05),
-        );
-        break;
-      case 'right':
-        newRect = _initialCropRect!.copyWith(
-          right: (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0),
-        );
-        break;
+    // Check if we have an aspect ratio to maintain
+    final hasAspectRatio = cropState.aspectRatioPreset != AspectRatioPreset.free && _dragHandle != 'center';
+    final targetRatio = hasAspectRatio 
+        ? cropState.aspectRatioPreset.getRatioWithOrientation(cropState.isPortraitOrientation)
+        : null;
+    
+    if (hasAspectRatio && targetRatio != null) {
+      // FOR ASPECT RATIO PRESETS - CALCULATE IN ORIGINAL IMAGE PIXEL SPACE FOR ACTUAL ASPECT RATIO
+      switch (_dragHandle) {
+        case 'top-left':
+          // Move left edge, calculate everything IN ORIGINAL PIXELS for true aspect ratio
+          final newLeft = (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05);
+          
+          // Convert to ORIGINAL PIXELS for precise calculations
+          final pixelLeft = newLeft * widget.originalImageSize.width;
+          final pixelRight = _initialCropRect!.right * widget.originalImageSize.width;
+          final pixelWidth = pixelRight - pixelLeft;
+          
+          // Calculate height IN ORIGINAL PIXELS to maintain aspect ratio
+          final pixelHeight = pixelWidth / targetRatio;
+          
+          // Convert back to normalized using original dimensions
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
+          
+          newRect = CropRect(
+            left: newLeft,
+            top: _initialCropRect!.bottom - normalizedHeight,
+            right: _initialCropRect!.right,
+            bottom: _initialCropRect!.bottom,
+          );
+          break;
+        case 'top-right':
+          // Move right edge, calculate everything IN ORIGINAL PIXELS for true aspect ratio
+          final newRight = (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0);
+          
+          // Convert to ORIGINAL PIXELS
+          final pixelLeft = _initialCropRect!.left * widget.originalImageSize.width;
+          final pixelRight = newRight * widget.originalImageSize.width;
+          final pixelWidth = pixelRight - pixelLeft;
+          
+          // Calculate height IN ORIGINAL PIXELS to maintain aspect ratio
+          final pixelHeight = pixelWidth / targetRatio;
+          
+          // Convert back to normalized
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
+          
+          newRect = CropRect(
+            left: _initialCropRect!.left,
+            top: _initialCropRect!.bottom - normalizedHeight,
+            right: newRight,
+            bottom: _initialCropRect!.bottom,
+          );
+          break;
+        case 'bottom-left':
+          // Move left edge, calculate everything IN PIXELS for true aspect ratio
+          final newLeft = (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05);
+          
+          // Convert to PIXELS
+          final pixelLeft = newLeft * widget.originalImageSize.width;
+          final pixelRight = _initialCropRect!.right * widget.originalImageSize.width;
+          final pixelWidth = pixelRight - pixelLeft;
+          
+          // Calculate height IN PIXELS to maintain aspect ratio
+          final pixelHeight = pixelWidth / targetRatio;
+          
+          // Convert back to normalized
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
+          
+          newRect = CropRect(
+            left: newLeft,
+            top: _initialCropRect!.top,
+            right: _initialCropRect!.right,
+            bottom: _initialCropRect!.top + normalizedHeight,
+          );
+          break;
+        case 'bottom-right':
+          // Move right edge, calculate everything IN PIXELS for true aspect ratio
+          final newRight = (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0);
+          
+          // Convert to PIXELS
+          final pixelLeft = _initialCropRect!.left * widget.originalImageSize.width;
+          final pixelRight = newRight * widget.originalImageSize.width;
+          final pixelWidth = pixelRight - pixelLeft;
+          
+          // Calculate height IN PIXELS to maintain aspect ratio
+          final pixelHeight = pixelWidth / targetRatio;
+          
+          // Convert back to normalized
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
+          
+          newRect = CropRect(
+            left: _initialCropRect!.left,
+            top: _initialCropRect!.top,
+            right: newRight,
+            bottom: _initialCropRect!.top + normalizedHeight,
+          );
+          break;
+        case 'top':
+          // Move top edge, calculate width IN PIXELS to maintain ratio
+          final newTop = (_initialCropRect!.top + dy).clamp(0.0, _initialCropRect!.bottom - 0.05);
+          
+          // Convert to PIXELS
+          final pixelHeight = (_initialCropRect!.bottom - newTop) * widget.originalImageSize.height;
+          final pixelWidth = pixelHeight * targetRatio;
+          
+          // Convert back to normalized
+          final normalizedWidth = pixelWidth / widget.originalImageSize.width;
+          final widthDiff = normalizedWidth - _initialCropRect!.width;
+          
+          newRect = CropRect(
+            left: _initialCropRect!.left - widthDiff / 2,
+            top: newTop,
+            right: _initialCropRect!.right + widthDiff / 2,
+            bottom: _initialCropRect!.bottom,
+          );
+          break;
+        case 'bottom':
+          // Move bottom edge, calculate width IN PIXELS to maintain ratio
+          final newBottom = (_initialCropRect!.bottom + dy).clamp(_initialCropRect!.top + 0.05, 1.0);
+          
+          // Convert to PIXELS
+          final pixelHeight = (newBottom - _initialCropRect!.top) * widget.originalImageSize.height;
+          final pixelWidth = pixelHeight * targetRatio;
+          
+          // Convert back to normalized
+          final normalizedWidth = pixelWidth / widget.originalImageSize.width;
+          final widthDiff = normalizedWidth - _initialCropRect!.width;
+          
+          newRect = CropRect(
+            left: _initialCropRect!.left - widthDiff / 2,
+            top: _initialCropRect!.top,
+            right: _initialCropRect!.right + widthDiff / 2,
+            bottom: newBottom,
+          );
+          break;
+        case 'left':
+          // Move left edge, calculate height IN PIXELS to maintain ratio
+          final newLeft = (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05);
+          
+          // Convert to PIXELS
+          final pixelWidth = (_initialCropRect!.right - newLeft) * widget.originalImageSize.width;
+          final pixelHeight = pixelWidth / targetRatio;
+          
+          // Convert back to normalized
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
+          final heightDiff = normalizedHeight - _initialCropRect!.height;
+          
+          newRect = CropRect(
+            left: newLeft,
+            top: _initialCropRect!.top - heightDiff / 2,
+            right: _initialCropRect!.right,
+            bottom: _initialCropRect!.bottom + heightDiff / 2,
+          );
+          break;
+        case 'right':
+          // Move right edge, calculate height IN PIXELS to maintain ratio
+          final newRight = (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0);
+          
+          // Convert to PIXELS
+          final pixelWidth = (newRight - _initialCropRect!.left) * widget.originalImageSize.width;
+          final pixelHeight = pixelWidth / targetRatio;
+          
+          // Convert back to normalized
+          final normalizedHeight = pixelHeight / widget.originalImageSize.height;
+          final heightDiff = normalizedHeight - _initialCropRect!.height;
+          
+          newRect = CropRect(
+            left: _initialCropRect!.left,
+            top: _initialCropRect!.top - heightDiff / 2,
+            right: newRight,
+            bottom: _initialCropRect!.bottom + heightDiff / 2,
+          );
+          break;
+        default:
+          break;
+      }
+    } else {
+      // FREE MODE - Allow independent movement
+      switch (_dragHandle) {
+        case 'center':
+          // Move entire crop area
+          newRect = CropRect(
+            left: (_initialCropRect!.left + dx).clamp(0.0, 1.0 - _initialCropRect!.width),
+            top: (_initialCropRect!.top + dy).clamp(0.0, 1.0 - _initialCropRect!.height),
+            right: (_initialCropRect!.right + dx).clamp(_initialCropRect!.width, 1.0),
+            bottom: (_initialCropRect!.bottom + dy).clamp(_initialCropRect!.height, 1.0),
+          );
+          break;
+        case 'top-left':
+          newRect = _initialCropRect!.copyWith(
+            left: (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05),
+            top: (_initialCropRect!.top + dy).clamp(0.0, _initialCropRect!.bottom - 0.05),
+          );
+          break;
+        case 'top-right':
+          newRect = _initialCropRect!.copyWith(
+            right: (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0),
+            top: (_initialCropRect!.top + dy).clamp(0.0, _initialCropRect!.bottom - 0.05),
+          );
+          break;
+        case 'bottom-left':
+          newRect = _initialCropRect!.copyWith(
+            left: (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05),
+            bottom: (_initialCropRect!.bottom + dy).clamp(_initialCropRect!.top + 0.05, 1.0),
+          );
+          break;
+        case 'bottom-right':
+          newRect = _initialCropRect!.copyWith(
+            right: (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0),
+            bottom: (_initialCropRect!.bottom + dy).clamp(_initialCropRect!.top + 0.05, 1.0),
+          );
+          break;
+        case 'top':
+          newRect = _initialCropRect!.copyWith(
+            top: (_initialCropRect!.top + dy).clamp(0.0, _initialCropRect!.bottom - 0.05),
+          );
+          break;
+        case 'bottom':
+          newRect = _initialCropRect!.copyWith(
+            bottom: (_initialCropRect!.bottom + dy).clamp(_initialCropRect!.top + 0.05, 1.0),
+          );
+          break;
+        case 'left':
+          newRect = _initialCropRect!.copyWith(
+            left: (_initialCropRect!.left + dx).clamp(0.0, _initialCropRect!.right - 0.05),
+          );
+          break;
+        case 'right':
+          newRect = _initialCropRect!.copyWith(
+            right: (_initialCropRect!.right + dx).clamp(_initialCropRect!.left + 0.05, 1.0),
+          );
+          break;
+      }
     }
     
-    // Apply aspect ratio constraint if needed
-    if (cropState.aspectRatioPreset != AspectRatioPreset.free && 
-        cropState.aspectRatioPreset.ratio != null &&
-        _dragHandle != 'center') {
-      newRect = _constrainToAspectRatio(newRect, cropState.aspectRatioPreset.ratio!, _dragHandle!);
+    // Ensure the crop rectangle stays within image bounds
+    // BUT DON'T BREAK ASPECT RATIO FOR PRESETS!
+    if (hasAspectRatio && targetRatio != null) {
+      // For aspect ratio presets, clamp but maintain ratio
+      newRect = _clampToImageBoundsWithRatio(newRect, targetRatio);
+    } else {
+      // For free mode, clamp normally
+      newRect = _clampToImageBounds(newRect);
     }
     
-    cropState.updateCropRect(newRect);
+    // Update crop rect using original dimensions for precision
+    cropState.updateCropRectWithDimensions(newRect, widget.originalImageSize.width, widget.originalImageSize.height);
   }
   
   void _onPanEnd() {
@@ -342,40 +536,173 @@ class _CropOverlayState extends State<CropOverlay> {
   }
   
   CropRect _constrainToAspectRatio(CropRect rect, double targetRatio, String handle) {
+    // FORCE THE EXACT ASPECT RATIO - NO EXCEPTIONS
     final width = rect.width;
     final height = rect.height;
     
-    if (handle.contains('left') || handle.contains('right')) {
-      // Width changed, adjust height
+    // For ALL handles, we ALWAYS maintain the EXACT aspect ratio
+    // We keep the dimension that was changed and adjust the other
+    
+    if (handle == 'top-left') {
+      // Anchor is bottom-right
+      // Always maintain exact aspect ratio
       final newHeight = width / targetRatio;
-      if (handle.contains('top')) {
-        return rect.copyWith(top: rect.bottom - newHeight);
-      } else if (handle.contains('bottom')) {
-        return rect.copyWith(bottom: rect.top + newHeight);
-      } else {
-        // Just left or right edge
-        final heightDiff = newHeight - height;
-        return rect.copyWith(
-          top: rect.top - heightDiff / 2,
-          bottom: rect.bottom + heightDiff / 2,
-        );
-      }
-    } else {
-      // Height changed, adjust width
+      return CropRect(
+        left: rect.left,
+        top: rect.bottom - newHeight,
+        right: rect.right,
+        bottom: rect.bottom,
+      );
+    } else if (handle == 'top-right') {
+      // Anchor is bottom-left
+      final newHeight = width / targetRatio;
+      return CropRect(
+        left: rect.left,
+        top: rect.bottom - newHeight,
+        right: rect.right,
+        bottom: rect.bottom,
+      );
+    } else if (handle == 'bottom-left') {
+      // Anchor is top-right
+      final newHeight = width / targetRatio;
+      return CropRect(
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.top + newHeight,
+      );
+    } else if (handle == 'bottom-right') {
+      // Anchor is top-left
+      final newHeight = width / targetRatio;
+      return CropRect(
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.top + newHeight,
+      );
+    } else if (handle == 'left' || handle == 'right') {
+      // Side handles - adjust height to maintain ratio
+      final newHeight = width / targetRatio;
+      final heightDiff = newHeight - height;
+      return rect.copyWith(
+        top: rect.top - heightDiff / 2,
+        bottom: rect.bottom + heightDiff / 2,
+      );
+    } else if (handle == 'top' || handle == 'bottom') {
+      // Top/bottom handles - adjust width to maintain ratio
       final newWidth = height * targetRatio;
-      if (handle.contains('left')) {
-        return rect.copyWith(left: rect.right - newWidth);
-      } else if (handle.contains('right')) {
-        return rect.copyWith(right: rect.left + newWidth);
+      final widthDiff = newWidth - width;
+      return rect.copyWith(
+        left: rect.left - widthDiff / 2,
+        right: rect.right + widthDiff / 2,
+      );
+    }
+    
+    return rect;
+  }
+  
+  // Helper method to ensure crop stays within image bounds
+  CropRect _clampToImageBounds(CropRect rect) {
+    // Ensure all values are within [0, 1]
+    double left = rect.left.clamp(0.0, 1.0);
+    double top = rect.top.clamp(0.0, 1.0);
+    double right = rect.right.clamp(0.0, 1.0);
+    double bottom = rect.bottom.clamp(0.0, 1.0);
+    
+    // Ensure minimum size
+    const minSize = 0.05;
+    if (right - left < minSize) {
+      if (left < 0.5) {
+        right = left + minSize;
       } else {
-        // Just top or bottom edge
-        final widthDiff = newWidth - width;
-        return rect.copyWith(
-          left: rect.left - widthDiff / 2,
-          right: rect.right + widthDiff / 2,
-        );
+        left = right - minSize;
       }
     }
+    if (bottom - top < minSize) {
+      if (top < 0.5) {
+        bottom = top + minSize;
+      } else {
+        top = bottom - minSize;
+      }
+    }
+    
+    return CropRect(
+      left: left,
+      top: top,
+      right: right,
+      bottom: bottom,
+    );
+  }
+  
+  // Helper method to clamp within bounds WHILE MAINTAINING ASPECT RATIO IN PIXELS
+  CropRect _clampToImageBoundsWithRatio(CropRect rect, double targetRatio) {
+    double left = rect.left;
+    double top = rect.top;
+    double right = rect.right;
+    double bottom = rect.bottom;
+    
+    // Clamp to bounds first
+    left = left.clamp(0.0, 1.0);
+    right = right.clamp(0.0, 1.0);
+    top = top.clamp(0.0, 1.0);
+    bottom = bottom.clamp(0.0, 1.0);
+    
+    // Convert to pixels to maintain actual aspect ratio
+    final pixelLeft = left * widget.originalImageSize.width;
+    final pixelRight = right * widget.originalImageSize.width;
+    final pixelTop = top * widget.originalImageSize.height;
+    final pixelBottom = bottom * widget.originalImageSize.height;
+    
+    double pixelWidth = pixelRight - pixelLeft;
+    double pixelHeight = pixelBottom - pixelTop;
+    
+    // If it got too small, enforce minimum size
+    const minPixelSize = 30.0;
+    if (pixelWidth < minPixelSize || pixelHeight < minPixelSize) {
+      pixelWidth = minPixelSize;
+      pixelHeight = minPixelSize;  // For square
+    }
+    
+    // FORCE the exact pixel aspect ratio
+    pixelHeight = pixelWidth / targetRatio;
+    
+    // Check if it fits, if not scale down
+    if (pixelHeight > widget.originalImageSize.height) {
+      pixelHeight = widget.originalImageSize.height;
+      pixelWidth = pixelHeight * targetRatio;
+    }
+    if (pixelWidth > widget.originalImageSize.width) {
+      pixelWidth = widget.originalImageSize.width;
+      pixelHeight = pixelWidth / targetRatio;
+    }
+    
+    // Center if needed
+    final pixelCenterX = (pixelLeft + pixelRight) / 2;
+    final pixelCenterY = (pixelTop + pixelBottom) / 2;
+    
+    // Adjust center if it would go out of bounds
+    double finalCenterX = pixelCenterX;
+    double finalCenterY = pixelCenterY;
+    
+    if (pixelCenterX - pixelWidth/2 < 0) {
+      finalCenterX = pixelWidth/2;
+    } else if (pixelCenterX + pixelWidth/2 > widget.originalImageSize.width) {
+      finalCenterX = widget.originalImageSize.width - pixelWidth/2;
+    }
+    
+    if (pixelCenterY - pixelHeight/2 < 0) {
+      finalCenterY = pixelHeight/2;
+    } else if (pixelCenterY + pixelHeight/2 > widget.originalImageSize.height) {
+      finalCenterY = widget.originalImageSize.height - pixelHeight/2;
+    }
+    
+    // Convert back to normalized
+    return CropRect(
+      left: ((finalCenterX - pixelWidth/2) / widget.originalImageSize.width).clamp(0.0, 1.0),
+      top: ((finalCenterY - pixelHeight/2) / widget.originalImageSize.height).clamp(0.0, 1.0),
+      right: ((finalCenterX + pixelWidth/2) / widget.originalImageSize.width).clamp(0.0, 1.0),
+      bottom: ((finalCenterY + pixelHeight/2) / widget.originalImageSize.height).clamp(0.0, 1.0),
+    );
   }
 }
 

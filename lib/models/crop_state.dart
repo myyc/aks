@@ -8,15 +8,20 @@ class CropRect {
   final double right;
   final double bottom;
   
-  const CropRect({
+  CropRect({
     required this.left,
     required this.top,
     required this.right,
     required this.bottom,
-  });
+  }) : assert(left >= 0 && left <= 1, 'left must be between 0 and 1'),
+       assert(top >= 0 && top <= 1, 'top must be between 0 and 1'),
+       assert(right >= 0 && right <= 1, 'right must be between 0 and 1'),
+       assert(bottom >= 0 && bottom <= 1, 'bottom must be between 0 and 1'),
+       assert(left < right, 'left must be less than right'),
+       assert(top < bottom, 'top must be less than bottom');
   
   factory CropRect.full() {
-    return const CropRect(
+    return CropRect(
       left: 0.0,
       top: 0.0,
       right: 1.0,
@@ -27,6 +32,10 @@ class CropRect {
   double get width => right - left;
   double get height => bottom - top;
   double get aspectRatio => width / height;
+  
+  /// Check if this represents the full image (no crop)
+  bool get isFullImage => 
+    left == 0 && top == 0 && right == 1 && bottom == 1;
   
   /// Convert to pixel coordinates
   Rect toPixelRect(double imageWidth, double imageHeight) {
@@ -79,73 +88,107 @@ class CropRect {
   }
   
   @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is CropRect &&
+      other.left == left &&
+      other.top == top &&
+      other.right == right &&
+      other.bottom == bottom;
+  }
+  
+  @override
+  int get hashCode => Object.hash(left, top, right, bottom);
+  
+  @override
   String toString() {
     return 'CropRect(left: $left, top: $top, right: $right, bottom: $bottom)';
   }
 }
 
-/// Preset aspect ratios for cropping
+/// Preset aspect ratios for cropping - each has portrait and landscape versions
 enum AspectRatioPreset {
-  free,
-  square,      // 1:1
-  portrait43,  // 3:4
-  portrait23,  // 2:3
-  portrait916, // 9:16 (Instagram Story)
-  portrait45,  // 4:5 (Instagram Portrait)
-  landscape43, // 4:3
-  landscape32, // 3:2
-  landscape169,// 16:9
-  landscape235,// 2.35:1 (Cinema)
+  free,            // Free crop
+  square,          // 1:1 - Square
+  format67,        // 6×7 Medium format (6:7 portrait / 7:6 landscape)
+  format57,        // 5×7 Print (5:7 portrait / 7:5 landscape)
+  format810,       // 8×10 Large format (4:5 portrait / 5:4 landscape)
+  format645,       // 6×4.5 Medium format (3:4 portrait / 4:3 landscape)
+  format35mm,      // 35mm Film (2:3 portrait / 3:2 landscape)
+  format169,       // 16:9 Video / 9:16 Story (9:16 portrait / 16:9 landscape)
+  cinemascope,     // Cinemascope (1:2.35 portrait / 2.35:1 landscape)
+  xpan,            // Xpan Panoramic (24:65 portrait / 65:24 landscape)
 }
 
 extension AspectRatioPresetExtension on AspectRatioPreset {
-  String get label {
+  // Get ratio based on orientation
+  double? getRatioWithOrientation(bool isPortrait) {
+    final baseRatio = ratio;
+    if (baseRatio == null || this == AspectRatioPreset.square) {
+      return baseRatio;
+    }
+    
+    // Check if this is a naturally portrait format (ratio < 1)
+    final isNaturallyPortrait = baseRatio < 1.0;
+    
+    // If orientation matches natural orientation, use base ratio
+    // If orientation is opposite, flip the ratio
+    if (isPortrait == isNaturallyPortrait) {
+      return baseRatio;
+    } else {
+      return 1.0 / baseRatio;
+    }
+  }
+  
+  // Get label based on orientation
+  String getLabel(bool isPortrait) {
     switch (this) {
       case AspectRatioPreset.free:
         return 'Free';
       case AspectRatioPreset.square:
-        return '1:1';
-      case AspectRatioPreset.portrait43:
-        return '3:4';
-      case AspectRatioPreset.portrait23:
-        return '2:3';
-      case AspectRatioPreset.portrait916:
-        return '9:16';
-      case AspectRatioPreset.portrait45:
-        return '4:5';
-      case AspectRatioPreset.landscape43:
-        return '4:3';
-      case AspectRatioPreset.landscape32:
-        return '3:2';
-      case AspectRatioPreset.landscape169:
-        return '16:9';
-      case AspectRatioPreset.landscape235:
-        return '2.35:1';
+        return 'Square (1:1)';
+      case AspectRatioPreset.format67:
+        return isPortrait ? '6×7 (6:7)' : '6×7 (7:6)';
+      case AspectRatioPreset.format57:
+        return isPortrait ? '5×7 (5:7)' : '5×7 (7:5)';
+      case AspectRatioPreset.format810:
+        return isPortrait ? '8×10 (4:5)' : '8×10 (5:4)';
+      case AspectRatioPreset.format645:
+        return isPortrait ? '6×4.5 (3:4)' : '6×4.5 (4:3)';
+      case AspectRatioPreset.format35mm:
+        return isPortrait ? '35mm (2:3)' : '35mm (3:2)';
+      case AspectRatioPreset.format169:
+        return isPortrait ? 'Story (9:16)' : '16:9';
+      case AspectRatioPreset.cinemascope:
+        return isPortrait ? 'Cinema (1:2.35)' : 'Cinema (2.35:1)';
+      case AspectRatioPreset.xpan:
+        return isPortrait ? 'Xpan (24:65)' : 'Xpan (65:24)';
     }
   }
   
+  // Base ratio (stored as landscape ratios, all > 1.0 except where naturally portrait)
   double? get ratio {
     switch (this) {
       case AspectRatioPreset.free:
         return null;
       case AspectRatioPreset.square:
         return 1.0;
-      case AspectRatioPreset.portrait43:
-        return 3.0 / 4.0;
-      case AspectRatioPreset.portrait23:
-        return 2.0 / 3.0;
-      case AspectRatioPreset.portrait916:
-        return 9.0 / 16.0;
-      case AspectRatioPreset.portrait45:
-        return 4.0 / 5.0;
-      case AspectRatioPreset.landscape43:
-        return 4.0 / 3.0;
-      case AspectRatioPreset.landscape32:
-        return 3.0 / 2.0;
-      case AspectRatioPreset.landscape169:
-        return 16.0 / 9.0;
-      case AspectRatioPreset.landscape235:
-        return 2.35;
+      case AspectRatioPreset.format67:
+        return 6.0 / 7.0;  // Naturally portrait format (taller than wide)
+      case AspectRatioPreset.format57:
+        return 5.0 / 7.0;  // Naturally portrait format
+      case AspectRatioPreset.format810:
+        return 4.0 / 5.0;  // Naturally portrait format (8×10 prints)
+      case AspectRatioPreset.format645:
+        return 4.0 / 3.0;  // Landscape format (medium format 6×4.5)
+      case AspectRatioPreset.format35mm:
+        return 3.0 / 2.0;  // Landscape format (35mm film)
+      case AspectRatioPreset.format169:
+        return 16.0 / 9.0; // Landscape format (HD video)
+      case AspectRatioPreset.cinemascope:
+        return 2.35;       // Landscape format (widescreen cinema)
+      case AspectRatioPreset.xpan:
+        return 65.0 / 24.0;  // Landscape format (panoramic)
     }
   }
 }
@@ -157,11 +200,42 @@ class CropState extends ChangeNotifier {
   CropRect? _savedCropRect; // Store the crop rect when starting to edit
   AspectRatioPreset _aspectRatioPreset = AspectRatioPreset.free;
   bool _showRuleOfThirds = true;
+  bool _isPortraitOrientation = false; // Track orientation for all crops
+  double? _aspectRatio; // For testing
+  double? _lockedAspectRatio; // For testing
+  CropRect? _currentCrop; // For testing
   
   bool get isActive => _isActive;
   CropRect get cropRect => _cropRect;
   AspectRatioPreset get aspectRatioPreset => _aspectRatioPreset;
   bool get showRuleOfThirds => _showRuleOfThirds;
+  bool get isPortraitOrientation => _isPortraitOrientation;
+  
+  // Additional getters for testing
+  double? get aspectRatio => _aspectRatio;
+  double? get lockedAspectRatio => _lockedAspectRatio;
+  CropRect? get currentCrop => _currentCrop;
+  
+  // Additional setters for testing
+  set isActive(bool value) {
+    _isActive = value;
+    notifyListeners();
+  }
+  
+  set aspectRatio(double? value) {
+    _aspectRatio = value;
+    notifyListeners();
+  }
+  
+  set lockedAspectRatio(double? value) {
+    _lockedAspectRatio = value;
+    notifyListeners();
+  }
+  
+  set currentCrop(CropRect? value) {
+    _currentCrop = value;
+    notifyListeners();
+  }
   
   void startCropping([CropRect? currentCrop]) {
     _isActive = true;
@@ -171,6 +245,10 @@ class CropState extends ChangeNotifier {
     _cropRect = _savedCropRect!;
     notifyListeners();
   }
+  
+  /// Get the image to show during cropping
+  /// Returns true if we should show original, false for current
+  bool get shouldShowOriginalForCrop => _isActive;
   
   void cancelCropping() {
     _isActive = false;
@@ -191,65 +269,81 @@ class CropState extends ChangeNotifier {
     notifyListeners();
   }
   
-  void setAspectRatioPreset(AspectRatioPreset preset) {
+  // New method that accepts image dimensions to properly calculate orientation
+  void updateCropRectWithDimensions(CropRect rect, double imageWidth, double imageHeight) {
+    _cropRect = rect;
+    
+    // For free mode, update orientation based on actual pixel aspect ratio
+    if (_aspectRatioPreset == AspectRatioPreset.free) {
+      final pixelRect = rect.toPixelRect(imageWidth, imageHeight);
+      final pixelWidth = pixelRect.width;
+      final pixelHeight = pixelRect.height;
+      
+      // Check if the crop is portrait (taller than wide) or landscape (wider than tall)
+      _isPortraitOrientation = pixelHeight > pixelWidth;
+    }
+    
+    notifyListeners();
+  }
+  
+  void setAspectRatioPreset(AspectRatioPreset preset, double imageWidth, double imageHeight) {
     _aspectRatioPreset = preset;
-    // If switching from free to fixed ratio, adjust current crop
-    if (preset != AspectRatioPreset.free && preset.ratio != null) {
-      _adjustCropToAspectRatio(preset.ratio!);
+    // Keep the current orientation when changing presets
+    // (don't reset to landscape automatically)
+    // Apply the preset with maximum size
+    if (preset != AspectRatioPreset.free) {
+      _applyPresetWithMaxSize(imageWidth, imageHeight);
     }
     notifyListeners();
   }
   
-  void toggleRuleOfThirds() {
-    _showRuleOfThirds = !_showRuleOfThirds;
-    notifyListeners();
-  }
-  
-  void _adjustCropToAspectRatio(double targetRatio) {
-    final currentRatio = _cropRect.aspectRatio;
+  void toggleOrientation(double imageWidth, double imageHeight) {
+    _isPortraitOrientation = !_isPortraitOrientation;
     
-    if ((currentRatio - targetRatio).abs() < 0.01) {
-      return; // Already close enough
-    }
-    
-    double newLeft = _cropRect.left;
-    double newTop = _cropRect.top;
-    double newRight = _cropRect.right;
-    double newBottom = _cropRect.bottom;
-    
-    if (currentRatio > targetRatio) {
-      // Current is wider, need to make taller
-      final targetHeight = _cropRect.width / targetRatio;
-      final heightDiff = targetHeight - _cropRect.height;
-      newTop -= heightDiff / 2;
-      newBottom += heightDiff / 2;
-      
-      // Clamp to bounds
-      if (newTop < 0) {
-        newBottom -= newTop;
-        newTop = 0;
-      }
-      if (newBottom > 1) {
-        newTop -= (newBottom - 1);
-        newBottom = 1;
-      }
+    if (_aspectRatioPreset == AspectRatioPreset.free) {
+      // For free mode, rotate the current crop
+      _rotateCrop(imageWidth, imageHeight);
     } else {
-      // Current is taller, need to make wider
-      final targetWidth = _cropRect.height * targetRatio;
-      final widthDiff = targetWidth - _cropRect.width;
-      newLeft -= widthDiff / 2;
-      newRight += widthDiff / 2;
-      
-      // Clamp to bounds
-      if (newLeft < 0) {
-        newRight -= newLeft;
-        newLeft = 0;
-      }
-      if (newRight > 1) {
-        newLeft -= (newRight - 1);
-        newRight = 1;
-      }
+      // For presets, reapply with the new orientation
+      _applyPresetWithMaxSize(imageWidth, imageHeight);
     }
+    notifyListeners();
+  }
+  
+  void _rotateCrop(double imageWidth, double imageHeight) {
+    // Convert current crop to pixels
+    final pixelRect = _cropRect.toPixelRect(imageWidth, imageHeight);
+    final currentPixelWidth = pixelRect.width;
+    final currentPixelHeight = pixelRect.height;
+    
+    // Swap width and height
+    final newPixelWidth = currentPixelHeight;
+    final newPixelHeight = currentPixelWidth;
+    
+    // Scale down if it doesn't fit
+    double scaledWidth = newPixelWidth;
+    double scaledHeight = newPixelHeight;
+    
+    if (scaledWidth > imageWidth) {
+      final scale = imageWidth / scaledWidth;
+      scaledWidth = imageWidth;
+      scaledHeight = scaledHeight * scale;
+    }
+    
+    if (scaledHeight > imageHeight) {
+      final scale = imageHeight / scaledHeight;
+      scaledHeight = imageHeight;
+      scaledWidth = scaledWidth * scale;
+    }
+    
+    // Center the rotated crop
+    final centerX = imageWidth / 2;
+    final centerY = imageHeight / 2;
+    
+    final newLeft = (centerX - scaledWidth / 2) / imageWidth;
+    final newTop = (centerY - scaledHeight / 2) / imageHeight;
+    final newRight = (centerX + scaledWidth / 2) / imageWidth;
+    final newBottom = (centerY + scaledHeight / 2) / imageHeight;
     
     _cropRect = CropRect(
       left: newLeft.clamp(0.0, 1.0),
@@ -258,12 +352,53 @@ class CropState extends ChangeNotifier {
       bottom: newBottom.clamp(0.0, 1.0),
     );
   }
+  void toggleRuleOfThirds() {
+    _showRuleOfThirds = !_showRuleOfThirds;
+    notifyListeners();
+  }
+  
+  void _applyPresetWithMaxSize(double imageWidth, double imageHeight) {
+    final targetRatio = _aspectRatioPreset.getRatioWithOrientation(_isPortraitOrientation);
+    if (targetRatio == null) return;
+    
+    final imageRatio = imageWidth / imageHeight;
+    double cropWidth, cropHeight;
+    
+    // Calculate the largest possible crop that fits the image
+    if (imageRatio > targetRatio) {
+      // Image is wider than target ratio - constrain by height
+      cropHeight = imageHeight;
+      cropWidth = imageHeight * targetRatio;
+    } else {
+      // Image is taller than target ratio - constrain by width
+      cropWidth = imageWidth;
+      cropHeight = imageWidth / targetRatio;
+    }
+    
+    // Convert to normalized coordinates (0-1)
+    final normalizedWidth = cropWidth / imageWidth;
+    final normalizedHeight = cropHeight / imageHeight;
+    
+    // Center the crop
+    final left = (1.0 - normalizedWidth) / 2;
+    final top = (1.0 - normalizedHeight) / 2;
+    
+    _cropRect = CropRect(
+      left: left,
+      top: top,
+      right: left + normalizedWidth,
+      bottom: top + normalizedHeight,
+    );
+  }
   
   void reset() {
     _cropRect = CropRect.full();
     _savedCropRect = null;
     _aspectRatioPreset = AspectRatioPreset.free;
     _isActive = false;
+    _aspectRatio = null;
+    _lockedAspectRatio = null;
+    _currentCrop = null;
     notifyListeners();
   }
   

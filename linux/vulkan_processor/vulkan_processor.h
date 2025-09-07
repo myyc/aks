@@ -37,6 +37,26 @@ int vk_process_image_with_curves(
     uint8_t** output_pixels
 );
 
+// Process image with Vulkan including tone curves and cropping
+int vk_process_image_with_curves_and_crop(
+    const uint8_t* input_pixels,
+    int width,
+    int height,
+    const float* adjustments,
+    int adjustment_count,
+    float crop_left,    // Normalized 0-1
+    float crop_top,     // Normalized 0-1
+    float crop_right,   // Normalized 0-1
+    float crop_bottom,  // Normalized 0-1
+    const uint8_t* rgb_lut,    // 256 bytes tone curve LUT for RGB
+    const uint8_t* red_lut,    // 256 bytes tone curve LUT for red
+    const uint8_t* green_lut,  // 256 bytes tone curve LUT for green
+    const uint8_t* blue_lut,   // 256 bytes tone curve LUT for blue
+    uint8_t** output_pixels,
+    int* output_width,   // Output cropped width
+    int* output_height   // Output cropped height
+);
+
 // Free allocated buffer
 void vk_free_buffer(uint8_t* buffer);
 

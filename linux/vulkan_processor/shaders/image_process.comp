@@ -39,6 +39,12 @@ layout (binding = 2) uniform AdjustmentParams {
     float imageWidth;
     float imageHeight;
     float padding;
+    
+    // Crop parameters (normalized 0-1)
+    float cropLeft;
+    float cropTop;
+    float cropRight;
+    float cropBottom;
 } params;
 
 // Tone curve lookup tables (256 bytes each, packed as 64 uints)
@@ -168,18 +174,32 @@ vec3 applySaturationVibrance(vec3 color, float saturation, float vibrance) {
 void main() {
     uvec2 pos = gl_GlobalInvocationID.xy;
     
-    uint width = uint(params.imageWidth);
-    uint height = uint(params.imageHeight);
+    uint sourceWidth = uint(params.imageWidth);
+    uint sourceHeight = uint(params.imageHeight);
     
-    // Check bounds
-    if (pos.x >= width || pos.y >= height) {
+    // Calculate crop dimensions
+    uint cropStartX = uint(params.cropLeft * sourceWidth);
+    uint cropStartY = uint(params.cropTop * sourceHeight);
+    uint cropEndX = uint(params.cropRight * sourceWidth);
+    uint cropEndY = uint(params.cropBottom * sourceHeight);
+    uint cropWidth = cropEndX - cropStartX;
+    uint cropHeight = cropEndY - cropStartY;
+    
+    // Check if we're outside the cropped region
+    if (pos.x >= cropWidth || pos.y >= cropHeight) {
         return;
     }
     
+    // Map output position to source position
+    uint sourceX = cropStartX + pos.x;
+    uint sourceY = cropStartY + pos.y;
+    
     // Calculate buffer indices (byte offsets)
-    uint pixelIndex = pos.y * width + pos.x;
-    uint inputByteOffset = pixelIndex * 3; // RGB = 3 bytes per pixel
-    uint outputByteOffset = pixelIndex * 4; // RGBA = 4 bytes per pixel
+    uint sourcePixelIndex = sourceY * sourceWidth + sourceX;
+    uint outputPixelIndex = pos.y * cropWidth + pos.x;
+    
+    uint inputByteOffset = sourcePixelIndex * 3; // RGB = 3 bytes per pixel
+    uint outputByteOffset = outputPixelIndex * 4; // RGBA = 4 bytes per pixel
     
     // Read RGB bytes from input buffer
     // We need to handle byte packing since we're using uint arrays
@@ -245,6 +265,6 @@ void main() {
     uint ao = 255;
     
     // Write RGBA to output buffer (always aligned to word boundary)
-    uint outputWordIndex = pixelIndex;
+    uint outputWordIndex = outputPixelIndex;
     outputBuffer.data[outputWordIndex] = (ao << 24) | (bo << 16) | (go << 8) | ro;
 }

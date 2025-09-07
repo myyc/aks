@@ -4,8 +4,11 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aks/services/processors/cpu_processor.dart';
 import 'package:aks/services/processors/vulkan_processor.dart';
+import 'package:aks/services/processors/vulkan/vulkan_bindings.dart';
 import 'package:aks/services/processors/image_processor_interface.dart';
 import 'package:aks/models/adjustments.dart';
+import 'package:aks/models/edit_pipeline.dart';
+import 'package:aks/models/crop_state.dart';
 import 'package:aks/services/raw_processor.dart';
 import 'package:aks/services/image_processor.dart';
 import '../test_helper.dart';
@@ -532,6 +535,297 @@ void main() {
       // Compare results - allow more tolerance for combined adjustments
       // as small floating point differences can accumulate
       _comparePixels(cpuResult, gpuResult, 'All adjustments', maxDifference: 50);
+    });
+    
+    group('Cropping Tests', () {
+      test('CPU cropping should produce correct dimensions', () async {
+        if (rawPixels == null) {
+          print('SKIPPED: Test image not available');
+          return;
+        }
+        
+        print('\n=== Testing CPU cropping dimensions ===');
+        
+        // Create a 50% center crop
+        final cropRect = CropRect(
+          left: 0.25,
+          top: 0.25,
+          right: 0.75,
+          bottom: 0.75,
+        );
+        
+        // Create raw pixel data
+        final rawData = RawPixelData(
+          pixels: rawPixels.sublist(0, imageWidth * imageHeight * 3), // Convert to RGB
+          width: imageWidth,
+          height: imageHeight,
+        );
+        
+        // Apply crop using BaseImageProcessor's static method
+        final croppedData = BaseImageProcessor.applyCrop(rawData, cropRect);
+        
+        // Verify dimensions
+        final expectedWidth = (imageWidth * 0.5).round();
+        final expectedHeight = (imageHeight * 0.5).round();
+        
+        print('  Original: ${imageWidth}x${imageHeight}');
+        print('  Expected: ${expectedWidth}x${expectedHeight}');
+        print('  Actual: ${croppedData.width}x${croppedData.height}');
+        
+        expect(croppedData.width, equals(expectedWidth));
+        expect(croppedData.height, equals(expectedHeight));
+        expect(croppedData.pixels.length, equals(expectedWidth * expectedHeight * 3));
+      });
+      
+      test('GPU cropping should produce correct dimensions', () async {
+        if (rawPixels == null) {
+          print('SKIPPED: Test image not available');
+          return;
+        }
+        
+        if (!await VulkanProcessor.isAvailable()) {
+          print('SKIPPED: Vulkan not available on this system');
+          return;
+        }
+        
+        print('\n=== Testing GPU cropping dimensions ===');
+        
+        // Initialize Vulkan
+        VulkanBindings.initialize();
+        
+        // Create a 50% center crop
+        final cropLeft = 0.25;
+        final cropTop = 0.25;
+        final cropRight = 0.75;
+        final cropBottom = 0.75;
+        
+        // Create RGB pixels from RGBA
+        final rgbPixels = Uint8List(imageWidth * imageHeight * 3);
+        int rgbIndex = 0;
+        for (int i = 0; i < rawPixels.length - 3; i += 4) {
+          rgbPixels[rgbIndex++] = rawPixels[i];     // R
+          rgbPixels[rgbIndex++] = rawPixels[i + 1]; // G
+          rgbPixels[rgbIndex++] = rawPixels[i + 2]; // B
+        }
+        
+        // Create minimal adjustments array
+        final adjustments = Float32List(16); // Minimum required
+        adjustments[0] = 5500.0; // Default temperature
+        
+        // Process with GPU cropping
+        final result = VulkanBindings.processImageWithCrop(
+          rgbPixels,
+          imageWidth,
+          imageHeight,
+          adjustments,
+          cropLeft,
+          cropTop,
+          cropRight,
+          cropBottom,
+        );
+        
+        expect(result, isNotNull, reason: 'GPU cropping should succeed');
+        
+        if (result != null) {
+          final expectedWidth = ((cropRight - cropLeft) * imageWidth).round();
+          final expectedHeight = ((cropBottom - cropTop) * imageHeight).round();
+          
+          print('  Original: ${imageWidth}x${imageHeight}');
+          print('  Expected: ${expectedWidth}x${expectedHeight}');
+          print('  Actual: ${result.width}x${result.height}');
+          
+          expect(result.width, equals(expectedWidth));
+          expect(result.height, equals(expectedHeight));
+          expect(result.pixels.length, equals(expectedWidth * expectedHeight * 4)); // RGBA
+        }
+      });
+      
+      test('CPU and GPU cropping should produce identical results', () async {
+        if (rawPixels == null) {
+          print('SKIPPED: Test image not available');
+          return;
+        }
+        
+        if (!await VulkanProcessor.isAvailable()) {
+          print('SKIPPED: Vulkan not available on this system');
+          return;
+        }
+        
+        print('\n=== Testing CPU vs GPU cropping ===');
+        
+        // Create an asymmetric crop for better testing
+        final cropRect = CropRect(
+          left: 0.1,
+          top: 0.2,
+          right: 0.8,
+          bottom: 0.9,
+        );
+        
+        final pipeline = EditPipeline(adjustments: [], cropRect: cropRect);
+        
+        // Create RGB raw data
+        final rgbPixels = Uint8List(imageWidth * imageHeight * 3);
+        int rgbIndex = 0;
+        for (int i = 0; i < rawPixels.length - 3; i += 4) {
+          rgbPixels[rgbIndex++] = rawPixels[i];
+          rgbPixels[rgbIndex++] = rawPixels[i + 1];
+          rgbPixels[rgbIndex++] = rawPixels[i + 2];
+        }
+        
+        final rawData = RawPixelData(
+          pixels: rgbPixels,
+          width: imageWidth,
+          height: imageHeight,
+        );
+        
+        // Process with CPU
+        final cpuProcessor = CpuProcessor();
+        await cpuProcessor.initialize();
+        final cpuImage = await cpuProcessor.processImage(rawData, pipeline);
+        cpuProcessor.dispose();
+        
+        // Process with GPU
+        final gpuProcessor = VulkanProcessor();
+        await gpuProcessor.initialize();
+        final gpuImage = await gpuProcessor.processImage(rawData, pipeline);
+        gpuProcessor.dispose();
+        
+        // Compare dimensions
+        print('  CPU result: ${cpuImage.width}x${cpuImage.height}');
+        print('  GPU result: ${gpuImage.width}x${gpuImage.height}');
+        
+        expect(gpuImage.width, equals(cpuImage.width));
+        expect(gpuImage.height, equals(cpuImage.height));
+      });
+      
+      test('Edge crop values should be handled correctly', () async {
+        if (rawPixels == null) {
+          print('SKIPPED: Test image not available');
+          return;
+        }
+        
+        print('\n=== Testing edge crop values ===');
+        
+        // Create RGB raw data
+        final rgbPixels = Uint8List(imageWidth * imageHeight * 3);
+        int rgbIndex = 0;
+        for (int i = 0; i < rawPixels.length - 3; i += 4) {
+          rgbPixels[rgbIndex++] = rawPixels[i];
+          rgbPixels[rgbIndex++] = rawPixels[i + 1];
+          rgbPixels[rgbIndex++] = rawPixels[i + 2];
+        }
+        
+        final rawData = RawPixelData(
+          pixels: rgbPixels,
+          width: imageWidth,
+          height: imageHeight,
+        );
+        
+        // Test no crop (0,0,1,1)
+        var cropRect = CropRect(left: 0, top: 0, right: 1, bottom: 1);
+        var croppedData = BaseImageProcessor.applyCrop(rawData, cropRect);
+        
+        print('  No crop (0,0,1,1): ${croppedData.width}x${croppedData.height}');
+        expect(croppedData.width, equals(imageWidth));
+        expect(croppedData.height, equals(imageHeight));
+        
+        // Test minimal crop (1 pixel border)
+        final pixelBorder = 1.0;
+        cropRect = CropRect(
+          left: pixelBorder / imageWidth,
+          top: pixelBorder / imageHeight,
+          right: 1.0 - (pixelBorder / imageWidth),
+          bottom: 1.0 - (pixelBorder / imageHeight),
+        );
+        croppedData = BaseImageProcessor.applyCrop(rawData, cropRect);
+        
+        print('  1-pixel border crop: ${croppedData.width}x${croppedData.height}');
+        expect(croppedData.width, equals(imageWidth - 2));
+        expect(croppedData.height, equals(imageHeight - 2));
+        
+        // Test tiny center crop (10%)
+        cropRect = CropRect(left: 0.45, top: 0.45, right: 0.55, bottom: 0.55);
+        croppedData = BaseImageProcessor.applyCrop(rawData, cropRect);
+        
+        final expectedWidth = (imageWidth * 0.1).round();
+        final expectedHeight = (imageHeight * 0.1).round();
+        
+        print('  10% center crop: ${croppedData.width}x${croppedData.height}');
+        expect(croppedData.width, equals(expectedWidth));
+        expect(croppedData.height, equals(expectedHeight));
+      });
+      
+      test('Crop with adjustments should apply correctly', () async {
+        if (rawPixels == null) {
+          print('SKIPPED: Test image not available');
+          return;
+        }
+        
+        if (!await VulkanProcessor.isAvailable()) {
+          print('SKIPPED: Vulkan not available on this system');
+          return;
+        }
+        
+        print('\n=== Testing crop with adjustments ===');
+        
+        // Create crop and adjustments
+        final cropRect = CropRect(
+          left: 0.25,
+          top: 0.25,
+          right: 0.75,
+          bottom: 0.75,
+        );
+        
+        final adjustments = [
+          ExposureAdjustment(value: 0.5),
+          ContrastAdjustment(value: 20),
+          SaturationVibranceAdjustment(saturation: 15),
+        ];
+        
+        final pipeline = EditPipeline(
+          adjustments: adjustments,
+          cropRect: cropRect,
+        );
+        
+        // Create RGB raw data
+        final rgbPixels = Uint8List(imageWidth * imageHeight * 3);
+        int rgbIndex = 0;
+        for (int i = 0; i < rawPixels.length - 3; i += 4) {
+          rgbPixels[rgbIndex++] = rawPixels[i];
+          rgbPixels[rgbIndex++] = rawPixels[i + 1];
+          rgbPixels[rgbIndex++] = rawPixels[i + 2];
+        }
+        
+        final rawData = RawPixelData(
+          pixels: rgbPixels,
+          width: imageWidth,
+          height: imageHeight,
+        );
+        
+        // Process with both CPU and GPU
+        final cpuProcessor = CpuProcessor();
+        await cpuProcessor.initialize();
+        final cpuImage = await cpuProcessor.processImage(rawData, pipeline);
+        cpuProcessor.dispose();
+        
+        final gpuProcessor = VulkanProcessor();
+        await gpuProcessor.initialize();
+        final gpuImage = await gpuProcessor.processImage(rawData, pipeline);
+        gpuProcessor.dispose();
+        
+        // Verify dimensions match and are correct
+        final expectedWidth = (imageWidth * 0.5).round();
+        final expectedHeight = (imageHeight * 0.5).round();
+        
+        print('  Expected: ${expectedWidth}x${expectedHeight}');
+        print('  CPU result: ${cpuImage.width}x${cpuImage.height}');
+        print('  GPU result: ${gpuImage.width}x${gpuImage.height}');
+        
+        expect(cpuImage.width, equals(expectedWidth));
+        expect(cpuImage.height, equals(expectedHeight));
+        expect(gpuImage.width, equals(expectedWidth));
+        expect(gpuImage.height, equals(expectedHeight));
+      });
     });
   });
 }
