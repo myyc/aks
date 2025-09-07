@@ -37,6 +37,12 @@ class ImageState extends ChangeNotifier {
     }
     return _usePreview ? (_previewImage ?? _fullImage) : (_fullImage ?? _previewImage);
   }
+  
+  // Get the original uncropped image for crop tool
+  ui.Image? get originalImage {
+    return _usePreview ? (_originalPreviewImage ?? _originalFullImage) : (_originalFullImage ?? _originalPreviewImage);
+  }
+  
   String? get currentFilePath => _currentFilePath;
   bool get isLoading => _isLoading;
   bool get isProcessing => _isProcessing || _isProcessingFull;

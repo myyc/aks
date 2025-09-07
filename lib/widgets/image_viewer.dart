@@ -186,7 +186,8 @@ class _ImageViewerState extends State<ImageViewer> {
             }
             
             // Calculate the actual displayed size of the image
-            final imageAspectRatio = imageState.currentImage!.width / imageState.currentImage!.height;
+            final imageToMeasure = imageState.currentImage;
+            final imageAspectRatio = imageToMeasure!.width / imageToMeasure.height;
             final viewportAspectRatio = constraints.maxWidth / constraints.maxHeight;
             
             double displayWidth, displayHeight;
@@ -301,7 +302,7 @@ class _ImageViewerState extends State<ImageViewer> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              // The actual image
+                              // The actual image - always show current image with adjustments
                               RawImage(
                                 image: imageState.currentImage,
                                 fit: BoxFit.fill,
