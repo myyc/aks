@@ -128,17 +128,17 @@ vec3 applyContrast(vec3 color, float contrast) {
 vec3 applyHighlightsShadows(vec3 color, float highlights, float shadows) {
     float luminance = dot(color, vec3(0.299, 0.587, 0.114));
     
-    // Shadows adjustment
-    if (shadows != 0.0 && luminance < 0.5) {
-        float shadowFactor = 1.0 + (shadows / 100.0) * (1.0 - luminance * 2.0);
-        color *= shadowFactor;
-    }
+    // Use mix to avoid branching - smoother performance
+    // Shadows: affect darker areas (luminance < 0.5)
+    float shadowWeight = smoothstep(0.5, 0.0, luminance);
+    float shadowFactor = mix(1.0, 1.0 + (shadows / 100.0) * (1.0 - luminance * 2.0), shadowWeight * step(0.001, abs(shadows)));
     
-    // Highlights adjustment
-    if (highlights != 0.0 && luminance > 0.5) {
-        float highlightFactor = 1.0 + (highlights / 100.0) * ((luminance - 0.5) * 2.0);
-        color *= highlightFactor;
-    }
+    // Highlights: affect brighter areas (luminance > 0.5)
+    float highlightWeight = smoothstep(0.5, 1.0, luminance);
+    float highlightFactor = mix(1.0, 1.0 + (highlights / 100.0) * ((luminance - 0.5) * 2.0), highlightWeight * step(0.001, abs(highlights)));
+    
+    // Apply both factors (they affect different ranges)
+    color *= shadowFactor * highlightFactor;
     
     return color;
 }
@@ -153,20 +153,22 @@ vec3 applyBlacksWhites(vec3 color, float blacks, float whites) {
 vec3 applySaturationVibrance(vec3 color, float saturation, float vibrance) {
     float gray = dot(color, vec3(0.299, 0.587, 0.114));
     
-    // Saturation
-    if (saturation != 0.0) {
-        float satFactor = (100.0 + saturation) / 100.0;
-        color = mix(vec3(gray), color, satFactor);
-    }
+    // Combine saturation and vibrance for better performance
+    float satFactor = 1.0;
+    float vibFactor = 1.0;
     
-    // Vibrance (smart saturation that protects skin tones)
-    if (vibrance != 0.0) {
-        float maxChannel = max(max(color.r, color.g), color.b);
-        float minChannel = min(min(color.r, color.g), color.b);
-        float sat = maxChannel - minChannel;
-        float vibFactor = (100.0 + vibrance * (1.0 - sat)) / 100.0;
-        color = mix(vec3(gray), color, vibFactor);
-    }
+    // Calculate saturation factor
+    satFactor = mix(1.0, (100.0 + saturation) / 100.0, step(0.001, abs(saturation)));
+    
+    // Calculate vibrance factor based on current saturation
+    float maxChannel = max(max(color.r, color.g), color.b);
+    float minChannel = min(min(color.r, color.g), color.b);
+    float currentSat = maxChannel - minChannel;
+    vibFactor = mix(1.0, (100.0 + vibrance * (1.0 - currentSat)) / 100.0, step(0.001, abs(vibrance)));
+    
+    // Apply both factors together
+    float combinedFactor = satFactor * vibFactor;
+    color = mix(vec3(gray), color, combinedFactor);
     
     return color;
 }

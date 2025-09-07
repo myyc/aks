@@ -98,8 +98,14 @@ class CpuProcessor extends BaseImageProcessor {
     // Create working copy
     final workingPixels = Uint8List.fromList(pixels);
     
-    // Apply each adjustment
-    for (final adjustment in adjustments) {
+    // Check if we have adjustments to apply
+    if (adjustments.isEmpty) {
+      return _convertToRGBA(workingPixels, width, height);
+    }
+    
+    // Apply all adjustments except the last one
+    for (int i = 0; i < adjustments.length - 1; i++) {
+      final adjustment = adjustments[i];
       if (adjustment is WhiteBalanceAdjustment) {
         _applyWhiteBalance(workingPixels, adjustment);
       } else if (adjustment is ExposureAdjustment) {
@@ -117,8 +123,9 @@ class CpuProcessor extends BaseImageProcessor {
       }
     }
     
-    // Convert RGB to RGBA
-    return _convertToRGBA(workingPixels, width, height);
+    // Apply last adjustment while converting to RGBA
+    final lastAdjustment = adjustments.last;
+    return _applyLastAdjustmentWithRGBA(workingPixels, width, height, lastAdjustment);
   }
   
   // ===== Processing methods (run in isolate) =====
@@ -136,28 +143,8 @@ class CpuProcessor extends BaseImageProcessor {
   }
   
   static void _applyHighlightsShadows(Uint8List pixels, HighlightsShadowsAdjustment adj) {
-    if (adj.highlights == 0 && adj.shadows == 0) return;
-    
-    for (int i = 0; i < pixels.length; i += 3) {
-      final r = pixels[i];
-      final g = pixels[i + 1];
-      final b = pixels[i + 2];
-      final luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-      
-      if (adj.shadows != 0 && luminance < 0.5) {
-        final shadowFactor = 1 + (adj.shadows / 100) * (1 - luminance * 2);
-        pixels[i] = _clamp((pixels[i] * shadowFactor).round());
-        pixels[i + 1] = _clamp((pixels[i + 1] * shadowFactor).round());
-        pixels[i + 2] = _clamp((pixels[i + 2] * shadowFactor).round());
-      }
-      
-      if (adj.highlights != 0 && luminance > 0.5) {
-        final highlightFactor = 1 + (adj.highlights / 100) * ((luminance - 0.5) * 2);
-        pixels[i] = _clamp((pixels[i] * highlightFactor).round());
-        pixels[i + 1] = _clamp((pixels[i + 1] * highlightFactor).round());
-        pixels[i + 2] = _clamp((pixels[i + 2] * highlightFactor).round());
-      }
-    }
+    // Use optimized LUT-based implementation
+    OptimizedProcessor.applyHighlightsShadowsLUT(pixels, adj.highlights, adj.shadows);
   }
   
   static void _applyBlacksWhites(Uint8List pixels, BlacksWhitesAdjustment adj) {
@@ -277,26 +264,65 @@ class CpuProcessor extends BaseImageProcessor {
     }
     
     if (adj.vibrance != 0) {
-      for (int i = 0; i < pixels.length; i += 3) {
-        final r = pixels[i];
-        final g = pixels[i + 1];
-        final b = pixels[i + 2];
-        
-        final max = [r, g, b].reduce((a, b) => a > b ? a : b);
-        final min = [r, g, b].reduce((a, b) => a < b ? a : b);
-        final saturation = max == min ? 0.0 : (max - min) / 255.0;
-        final vibFactor = (100 + adj.vibrance * (1 - saturation)) / 100;
-        
-        final gray = (0.299 * r + 0.587 * g + 0.114 * b);
-        pixels[i] = _clamp((gray + (r - gray) * vibFactor).round());
-        pixels[i + 1] = _clamp((gray + (g - gray) * vibFactor).round());
-        pixels[i + 2] = _clamp((gray + (b - gray) * vibFactor).round());
-      }
+      // Use optimized integer math implementation
+      OptimizedProcessor.applyVibranceFast(pixels, adj.vibrance);
     }
   }
   
   static int _clamp(int value) {
     return value.clamp(0, 255);
+  }
+  
+  /// Apply the last adjustment while converting to RGBA to save a pass
+  static Uint8List _applyLastAdjustmentWithRGBA(
+    Uint8List rgb,
+    int width,
+    int height,
+    Adjustment lastAdjustment,
+  ) {
+    final rgbaSize = width * height * 4;
+    final rgba = Uint8List(rgbaSize);
+    
+    // For simple adjustments that can be applied during copy
+    if (lastAdjustment is ExposureAdjustment && lastAdjustment.value != 0) {
+      final lut = OptimizedProcessor.generateExposureLUT(lastAdjustment.value);
+      int rgbIndex = 0;
+      int rgbaIndex = 0;
+      for (int i = 0; i < width * height; i++) {
+        rgba[rgbaIndex++] = lut[rgb[rgbIndex++]]; // R
+        rgba[rgbaIndex++] = lut[rgb[rgbIndex++]]; // G
+        rgba[rgbaIndex++] = lut[rgb[rgbIndex++]]; // B
+        rgba[rgbaIndex++] = 255; // A
+      }
+      return rgba;
+    } else if (lastAdjustment is ContrastAdjustment && lastAdjustment.value != 0) {
+      final lut = OptimizedProcessor.generateContrastLUT(lastAdjustment.value);
+      int rgbIndex = 0;
+      int rgbaIndex = 0;
+      for (int i = 0; i < width * height; i++) {
+        rgba[rgbaIndex++] = lut[rgb[rgbIndex++]]; // R
+        rgba[rgbaIndex++] = lut[rgb[rgbIndex++]]; // G
+        rgba[rgbaIndex++] = lut[rgb[rgbIndex++]]; // B
+        rgba[rgbaIndex++] = 255; // A
+      }
+      return rgba;
+    } else {
+      // For complex adjustments, apply them first then convert
+      if (lastAdjustment is WhiteBalanceAdjustment) {
+        _applyWhiteBalance(rgb, lastAdjustment);
+      } else if (lastAdjustment is HighlightsShadowsAdjustment) {
+        _applyHighlightsShadows(rgb, lastAdjustment);
+      } else if (lastAdjustment is BlacksWhitesAdjustment) {
+        _applyBlacksWhites(rgb, lastAdjustment);
+      } else if (lastAdjustment is ToneCurveAdjustment) {
+        _applyToneCurve(rgb, lastAdjustment);
+      } else if (lastAdjustment is SaturationVibranceAdjustment) {
+        _applySaturationVibrance(rgb, lastAdjustment);
+      }
+      
+      // Now do simple conversion
+      return _convertToRGBA(rgb, width, height);
+    }
   }
   
   static Uint8List _convertToRGBA(Uint8List rgb, int width, int height) {
