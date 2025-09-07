@@ -452,15 +452,36 @@ static int vk_process_image_internal(
     
     VkResult result;
     
+    // Calculate output dimensions based on crop parameters
+    int output_width = width;
+    int output_height = height;
+    float crop_left = 0.0f, crop_top = 0.0f, crop_right = 1.0f, crop_bottom = 1.0f;
+    
+    if (adjustment_count >= 18) {
+        // Extract crop parameters from indices 14-17
+        crop_left = adjustments[14];
+        crop_top = adjustments[15];
+        crop_right = adjustments[16];
+        crop_bottom = adjustments[17];
+        
+        // Calculate cropped dimensions
+        output_width = (int)((crop_right - crop_left) * width);
+        output_height = (int)((crop_bottom - crop_top) * height);
+        
+        VLOG("vk_process_image_internal: Cropping to %dx%d (from %.2f,%.2f to %.2f,%.2f)\n",
+             output_width, output_height, crop_left, crop_top, crop_right, crop_bottom);
+    }
+    
     // Calculate buffer sizes (ensure alignment for storage buffers)
     size_t input_pixel_count = width * height;
+    size_t output_pixel_count = output_width * output_height;
     size_t input_size = input_pixel_count * 3;  // RGB
-    size_t output_size = input_pixel_count * 4; // RGBA
+    size_t output_size = output_pixel_count * 4; // RGBA
     
     // Round up buffer sizes to multiple of 4 bytes for alignment
     size_t input_buffer_size = ((input_size + 3) / 4) * 4;
     size_t output_buffer_size = output_size; // Already aligned (4 bytes per pixel)
-    size_t uniform_size = sizeof(float) * 16; // Adjustment parameters (padded to 64 bytes)
+    size_t uniform_size = sizeof(float) * 20; // Adjustment parameters with crop (80 bytes)
     
     // Create buffers
     VkBuffer input_buffer, output_buffer, uniform_buffer;
@@ -724,34 +745,23 @@ static int vk_process_image_internal(
     vkMapMemory(device, uniform_memory, 0, uniform_size, 0, &mapped_uniform);
     
     // Pack adjustment parameters to match shader uniform structure
-    float packed_params[16] = {0}; // Initialize all to 0
+    float packed_params[20] = {0}; // Initialize all to 0 (now includes crop params)
     
-    // The Dart side always sends 16 floats, so we expect at least that many
-    if (adjustment_count >= 16) {
-        // Copy the adjustments directly as they're already properly packed
-        for (int i = 0; i < 14; i++) {
-            packed_params[i] = adjustments[i];
-        }
-        // Override the image dimensions (in case they weren't set correctly)
-        packed_params[11] = (float)width;   // imageWidth
-        packed_params[12] = (float)height;  // imageHeight
-    } else {
-        // Fallback: set defaults if not enough parameters
-        packed_params[0] = 5500.0f;         // temperature (neutral)
-        packed_params[1] = 0.0f;            // tint
-        packed_params[2] = 0.0f;            // exposure
-        packed_params[3] = 0.0f;            // contrast
-        packed_params[4] = 0.0f;            // highlights
-        packed_params[5] = 0.0f;            // shadows
-        packed_params[6] = 0.0f;            // blacks
-        packed_params[7] = 0.0f;            // whites
-        packed_params[8] = 0.0f;            // saturation
-        packed_params[9] = 0.0f;            // vibrance
-        packed_params[10] = 0.0f;           // toneCurveEnabled
-        packed_params[11] = (float)width;   // imageWidth
-        packed_params[12] = (float)height;  // imageHeight
-        packed_params[13] = 0.0f;           // padding
+    // Copy the adjustments
+    int params_to_copy = (adjustment_count < 20) ? adjustment_count : 20;
+    for (int i = 0; i < params_to_copy; i++) {
+        packed_params[i] = adjustments[i];
     }
+    
+    // Always set image dimensions
+    packed_params[11] = (float)width;   // imageWidth
+    packed_params[12] = (float)height;  // imageHeight
+    
+    // If crop parameters weren't provided (adjustment_count < 18), set defaults
+    if (adjustment_count < 15) packed_params[14] = 0.0f;  // cropLeft
+    if (adjustment_count < 16) packed_params[15] = 0.0f;  // cropTop
+    if (adjustment_count < 17) packed_params[16] = 1.0f;  // cropRight
+    if (adjustment_count < 18) packed_params[17] = 1.0f;  // cropBottom
     
     VLOG("vk_process_image_internal: Params: temp=%.1f, exp=%.2f, width=%.0f, height=%.0f\n", 
          packed_params[0], packed_params[2], packed_params[11], packed_params[12]);
@@ -926,9 +936,9 @@ static int vk_process_image_internal(
     vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE,
         pipeline_layout, 0, 1, &descriptor_set, 0, NULL);
     
-    // Dispatch compute shader (16x16 workgroups)
-    uint32_t group_count_x = (width + 15) / 16;
-    uint32_t group_count_y = (height + 15) / 16;
+    // Dispatch compute shader (16x16 workgroups) based on output dimensions
+    uint32_t group_count_x = (output_width + 15) / 16;
+    uint32_t group_count_y = (output_height + 15) / 16;
     vkCmdDispatch(command_buffer, group_count_x, group_count_y, 1);
     
     // Memory barrier after compute
@@ -1016,6 +1026,78 @@ int vk_process_image_with_curves(
         rgb_lut, red_lut, green_lut, blue_lut,
         output_pixels
     );
+}
+
+int vk_process_image_with_curves_and_crop(
+    const uint8_t* input_pixels,
+    int width,
+    int height,
+    const float* adjustments,
+    int adjustment_count,
+    float crop_left,
+    float crop_top,
+    float crop_right,
+    float crop_bottom,
+    const uint8_t* rgb_lut,
+    const uint8_t* red_lut,
+    const uint8_t* green_lut,
+    const uint8_t* blue_lut,
+    uint8_t** output_pixels,
+    int* output_width,
+    int* output_height
+) {
+    // Validate crop parameters
+    if (crop_left < 0.0f) crop_left = 0.0f;
+    if (crop_top < 0.0f) crop_top = 0.0f;
+    if (crop_right > 1.0f) crop_right = 1.0f;
+    if (crop_bottom > 1.0f) crop_bottom = 1.0f;
+    if (crop_left >= crop_right || crop_top >= crop_bottom) {
+        // Invalid crop, use full image
+        crop_left = 0.0f;
+        crop_top = 0.0f;
+        crop_right = 1.0f;
+        crop_bottom = 1.0f;
+    }
+    
+    // Calculate output dimensions
+    *output_width = (int)((crop_right - crop_left) * width);
+    *output_height = (int)((crop_bottom - crop_top) * height);
+    
+    // Create extended adjustments array with crop parameters
+    // We need 18 floats total (14 base + 4 crop parameters)
+    float* extended_adjustments = (float*)malloc(sizeof(float) * 18);
+    if (!extended_adjustments) {
+        fprintf(stderr, "Failed to allocate extended adjustments\n");
+        return 0;
+    }
+    
+    // Copy original adjustments
+    memcpy(extended_adjustments, adjustments, sizeof(float) * adjustment_count);
+    
+    // Ensure we have at least 14 floats (pad with zeros if needed)
+    for (int i = adjustment_count; i < 14; i++) {
+        extended_adjustments[i] = 0.0f;
+    }
+    
+    // Set image dimensions
+    extended_adjustments[11] = (float)width;  // imageWidth
+    extended_adjustments[12] = (float)height; // imageHeight
+    
+    // Add crop parameters at indices 14-17
+    extended_adjustments[14] = crop_left;
+    extended_adjustments[15] = crop_top;
+    extended_adjustments[16] = crop_right;
+    extended_adjustments[17] = crop_bottom;
+    
+    int result = vk_process_image_internal(
+        input_pixels, width, height,
+        extended_adjustments, 18,
+        rgb_lut, red_lut, green_lut, blue_lut,
+        output_pixels
+    );
+    
+    free(extended_adjustments);
+    return result;
 }
 
 void vk_free_buffer(uint8_t* buffer) {
