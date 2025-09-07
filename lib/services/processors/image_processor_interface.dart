@@ -66,7 +66,7 @@ abstract class BaseImageProcessor implements ImageProcessorInterface {
     if (pipeline.cropRect != null && 
         (pipeline.cropRect!.left != 0 || pipeline.cropRect!.top != 0 || 
          pipeline.cropRect!.right != 1 || pipeline.cropRect!.bottom != 1)) {
-      workingData = _applyCrop(rawData, pipeline.cropRect!);
+      workingData = applyCrop(rawData, pipeline.cropRect!);
     }
     
     // Process pixels with adjustments
@@ -91,7 +91,7 @@ abstract class BaseImageProcessor implements ImageProcessorInterface {
   }
   
   /// Apply crop to raw pixel data
-  static RawPixelData _applyCrop(RawPixelData source, CropRect cropRect) {
+  static RawPixelData applyCrop(RawPixelData source, CropRect cropRect) {
     // Calculate the actual pixel coordinates
     final cropLeft = (source.width * cropRect.left).round();
     final cropTop = (source.height * cropRect.top).round();

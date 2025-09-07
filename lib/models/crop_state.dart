@@ -8,15 +8,20 @@ class CropRect {
   final double right;
   final double bottom;
   
-  const CropRect({
+  CropRect({
     required this.left,
     required this.top,
     required this.right,
     required this.bottom,
-  });
+  }) : assert(left >= 0 && left <= 1, 'left must be between 0 and 1'),
+       assert(top >= 0 && top <= 1, 'top must be between 0 and 1'),
+       assert(right >= 0 && right <= 1, 'right must be between 0 and 1'),
+       assert(bottom >= 0 && bottom <= 1, 'bottom must be between 0 and 1'),
+       assert(left < right, 'left must be less than right'),
+       assert(top < bottom, 'top must be less than bottom');
   
   factory CropRect.full() {
-    return const CropRect(
+    return CropRect(
       left: 0.0,
       top: 0.0,
       right: 1.0,
@@ -27,6 +32,10 @@ class CropRect {
   double get width => right - left;
   double get height => bottom - top;
   double get aspectRatio => width / height;
+  
+  /// Check if this represents the full image (no crop)
+  bool get isFullImage => 
+    left == 0 && top == 0 && right == 1 && bottom == 1;
   
   /// Convert to pixel coordinates
   Rect toPixelRect(double imageWidth, double imageHeight) {
@@ -77,6 +86,19 @@ class CropRect {
       bottom: (json['bottom'] ?? 1.0).toDouble(),
     );
   }
+  
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is CropRect &&
+      other.left == left &&
+      other.top == top &&
+      other.right == right &&
+      other.bottom == bottom;
+  }
+  
+  @override
+  int get hashCode => Object.hash(left, top, right, bottom);
   
   @override
   String toString() {
@@ -179,12 +201,41 @@ class CropState extends ChangeNotifier {
   AspectRatioPreset _aspectRatioPreset = AspectRatioPreset.free;
   bool _showRuleOfThirds = true;
   bool _isPortraitOrientation = false; // Track orientation for all crops
+  double? _aspectRatio; // For testing
+  double? _lockedAspectRatio; // For testing
+  CropRect? _currentCrop; // For testing
   
   bool get isActive => _isActive;
   CropRect get cropRect => _cropRect;
   AspectRatioPreset get aspectRatioPreset => _aspectRatioPreset;
   bool get showRuleOfThirds => _showRuleOfThirds;
   bool get isPortraitOrientation => _isPortraitOrientation;
+  
+  // Additional getters for testing
+  double? get aspectRatio => _aspectRatio;
+  double? get lockedAspectRatio => _lockedAspectRatio;
+  CropRect? get currentCrop => _currentCrop;
+  
+  // Additional setters for testing
+  set isActive(bool value) {
+    _isActive = value;
+    notifyListeners();
+  }
+  
+  set aspectRatio(double? value) {
+    _aspectRatio = value;
+    notifyListeners();
+  }
+  
+  set lockedAspectRatio(double? value) {
+    _lockedAspectRatio = value;
+    notifyListeners();
+  }
+  
+  set currentCrop(CropRect? value) {
+    _currentCrop = value;
+    notifyListeners();
+  }
   
   void startCropping([CropRect? currentCrop]) {
     _isActive = true;
@@ -345,6 +396,9 @@ class CropState extends ChangeNotifier {
     _savedCropRect = null;
     _aspectRatioPreset = AspectRatioPreset.free;
     _isActive = false;
+    _aspectRatio = null;
+    _lockedAspectRatio = null;
+    _currentCrop = null;
     notifyListeners();
   }
   
