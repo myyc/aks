@@ -195,6 +195,10 @@ class CropState extends ChangeNotifier {
     notifyListeners();
   }
   
+  /// Get the image to show during cropping
+  /// Returns true if we should show original, false for current
+  bool get shouldShowOriginalForCrop => _isActive;
+  
   void cancelCropping() {
     _isActive = false;
     // Restore the previous crop rect that was saved when we started

@@ -59,9 +59,6 @@ class _CropOverlayState extends State<CropOverlay> {
             
             // Interactive crop area
             _buildInteractiveCropArea(cropState),
-            
-            // Aspect ratio selector
-            _buildAspectRatioSelector(cropState),
           ],
         );
       },
@@ -240,71 +237,6 @@ class _CropOverlayState extends State<CropOverlay> {
         return const SizedBox.shrink();
     }
   }
-  
-  Widget _buildAspectRatioSelector(CropState cropState) {
-    return Positioned(
-      top: 20,
-      left: 20,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButton<AspectRatioPreset>(
-              value: cropState.aspectRatioPreset,
-              dropdownColor: Colors.black.withOpacity(0.9),
-              style: AppTextStyles.inter(color: Colors.white),
-              underline: const SizedBox.shrink(),
-              onChanged: (preset) {
-                if (preset != null) {
-                  cropState.setAspectRatioPreset(preset, widget.imageSize.width, widget.imageSize.height);
-                }
-              },
-              items: AspectRatioPreset.values.map((preset) {
-                return DropdownMenuItem(
-                  value: preset,
-                  child: Text(preset.getLabel(cropState.isPortraitOrientation)),
-                );
-              }).toList(),
-            ),
-            // Orientation toggle button (hidden only for Square format)
-            if (cropState.aspectRatioPreset != AspectRatioPreset.square) ...[
-              const SizedBox(width: 8),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => cropState.toggleOrientation(widget.imageSize.width, widget.imageSize.height),
-                  borderRadius: BorderRadius.circular(4),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
-                        width: 1,
-                      ),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Icon(
-                      cropState.isPortraitOrientation 
-                        ? Icons.crop_portrait 
-                        : Icons.crop_landscape,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-  
   SystemMouseCursor _getCursorForPosition(String position) {
     switch (position) {
       case 'top-left':

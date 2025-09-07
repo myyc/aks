@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import '../../models/adjustments.dart';
 import '../../models/edit_pipeline.dart';
+import '../../models/crop_state.dart';
 import '../image_processor.dart';
 
 /// Abstract interface for image processors
@@ -60,11 +61,19 @@ abstract class BaseImageProcessor implements ImageProcessorInterface {
       await initialize();
     }
     
+    // Apply crop first if present
+    RawPixelData workingData = rawData;
+    if (pipeline.cropRect != null && 
+        (pipeline.cropRect!.left != 0 || pipeline.cropRect!.top != 0 || 
+         pipeline.cropRect!.right != 1 || pipeline.cropRect!.bottom != 1)) {
+      workingData = _applyCrop(rawData, pipeline.cropRect!);
+    }
+    
     // Process pixels with adjustments
     final processedPixels = await processPixels(
-      Uint8List.fromList(rawData.pixels), // Create copy
-      rawData.width,
-      rawData.height,
+      Uint8List.fromList(workingData.pixels), // Create copy
+      workingData.width,
+      workingData.height,
       pipeline.adjustments.toList(),
     );
     
@@ -72,13 +81,46 @@ abstract class BaseImageProcessor implements ImageProcessorInterface {
     final buffer = await ui.ImmutableBuffer.fromUint8List(processedPixels);
     final descriptor = ui.ImageDescriptor.raw(
       buffer,
-      width: rawData.width,
-      height: rawData.height,
+      width: workingData.width,
+      height: workingData.height,
       pixelFormat: ui.PixelFormat.rgba8888,
     );
     final codec = await descriptor.instantiateCodec();
     final frameInfo = await codec.getNextFrame();
     return frameInfo.image;
+  }
+  
+  /// Apply crop to raw pixel data
+  static RawPixelData _applyCrop(RawPixelData source, CropRect cropRect) {
+    // Calculate the actual pixel coordinates
+    final cropLeft = (source.width * cropRect.left).round();
+    final cropTop = (source.height * cropRect.top).round();
+    final cropRight = (source.width * cropRect.right).round();
+    final cropBottom = (source.height * cropRect.bottom).round();
+    
+    // Calculate new dimensions
+    final newWidth = cropRight - cropLeft;
+    final newHeight = cropBottom - cropTop;
+    
+    // Create new pixel array for cropped image
+    final croppedPixels = Uint8List(newWidth * newHeight * 3);
+    
+    // Copy pixels from source to cropped
+    int destIndex = 0;
+    for (int y = cropTop; y < cropBottom; y++) {
+      for (int x = cropLeft; x < cropRight; x++) {
+        final sourceIndex = (y * source.width + x) * 3;
+        croppedPixels[destIndex++] = source.pixels[sourceIndex];     // R
+        croppedPixels[destIndex++] = source.pixels[sourceIndex + 1]; // G
+        croppedPixels[destIndex++] = source.pixels[sourceIndex + 2]; // B
+      }
+    }
+    
+    return RawPixelData(
+      pixels: croppedPixels,
+      width: newWidth,
+      height: newHeight,
+    );
   }
   
   @override

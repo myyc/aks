@@ -25,9 +25,16 @@ class ImageProcessor {
     RawPixelData rawData,
     EditPipeline pipeline,
   ) async {
-    // Don't crop here - cropping is now handled at display/export time
-    // Process the full image with adjustments
-    final pixels = Uint8List.fromList(rawData.pixels);
+    // Apply crop first if present
+    RawPixelData workingData = rawData;
+    if (pipeline.cropRect != null && 
+        (pipeline.cropRect!.left != 0 || pipeline.cropRect!.top != 0 || 
+         pipeline.cropRect!.right != 1 || pipeline.cropRect!.bottom != 1)) {
+      workingData = _applyCrop(rawData, pipeline.cropRect!);
+    }
+    
+    // Process the image with adjustments
+    final pixels = Uint8List.fromList(workingData.pixels);
     
     // Apply adjustments in order
     for (final adjustment in pipeline.adjustments) {
@@ -47,14 +54,14 @@ class ImageProcessor {
     }
     
     // Convert RGB to RGBA for Flutter
-    final rgbaPixels = _convertToRGBA(pixels, rawData.width, rawData.height);
+    final rgbaPixels = _convertToRGBA(pixels, workingData.width, workingData.height);
     
     // Create Flutter image
     final buffer = await ui.ImmutableBuffer.fromUint8List(rgbaPixels);
     final descriptor = ui.ImageDescriptor.raw(
       buffer,
-      width: rawData.width,
-      height: rawData.height,
+      width: workingData.width,
+      height: workingData.height,
       pixelFormat: ui.PixelFormat.rgba8888,
     );
     final codec = await descriptor.instantiateCodec();

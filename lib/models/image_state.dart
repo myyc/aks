@@ -20,12 +20,15 @@ class ImageState extends ChangeNotifier {
   ui.Image? _originalFullImage;
   RawPixelData? _rawData;
   RawPixelData? _previewData;
+  RawPixelData? _originalRawData;  // Keep original uncropped raw data
+  RawPixelData? _originalPreviewData;  // Keep original uncropped preview data
   String? _currentFilePath;
   bool _isLoading = false;
   bool _isProcessing = false;
   bool _isProcessingFull = false;
   String? _error;
   bool _showOriginal = false;
+  bool _hasCrop = false;  // Track if image has been cropped
   final EditPipeline _pipeline = EditPipeline();
   Timer? _fullResTimer;
   bool _usePreview = true;
@@ -43,6 +46,16 @@ class ImageState extends ChangeNotifier {
     return _usePreview ? (_originalPreviewImage ?? _originalFullImage) : (_originalFullImage ?? _originalPreviewImage);
   }
   
+  // Get the image to display based on context (crop mode, spacebar, etc.)
+  ui.Image? getDisplayImage(bool isInCropMode) {
+    // During crop mode, show the original
+    if (isInCropMode && _hasCrop) {
+      return originalImage;
+    }
+    // Otherwise use the normal current image logic
+    return currentImage;
+  }
+  
   String? get currentFilePath => _currentFilePath;
   bool get isLoading => _isLoading;
   bool get isProcessing => _isProcessing || _isProcessingFull;
@@ -51,6 +64,7 @@ class ImageState extends ChangeNotifier {
   EditPipeline get pipeline => _pipeline;
   HistoryManager get historyManager => _historyManager;
   bool get showOriginal => _showOriginal;
+  bool get hasCrop => _hasCrop;
   
   // Get dimensions of the image that will be exported (accounting for crop)
   int? get exportImageWidth {
@@ -92,11 +106,25 @@ class ImageState extends ChangeNotifier {
   
   void _onPipelineChanged() {
     print('ImageState: Pipeline changed, cropRect=${_pipeline.cropRect}');
+    
+    // Check if crop has been applied
+    final previousHasCrop = _hasCrop;
+    _hasCrop = _pipeline.cropRect != null && 
+               (_pipeline.cropRect!.left != 0 || _pipeline.cropRect!.top != 0 ||
+                _pipeline.cropRect!.right != 1 || _pipeline.cropRect!.bottom != 1);
+    
     // Reprocess preview immediately when pipeline changes
     if (_previewData != null) {
       print('ImageState: Triggering preview reprocess');
       _processPreview();
     }
+    
+    // Also reprocess original images with new adjustments (but not crop)
+    // This ensures the original shown during crop mode has adjustments applied
+    if (_originalPreviewData != null) {
+      _processOriginalImages();
+    }
+    
     // Schedule full resolution processing
     _scheduleFullResProcessing();
     
@@ -170,16 +198,23 @@ class ImageState extends ChangeNotifier {
       final rawData = await RawProcessor.loadRawFile(filePath);
       if (rawData != null) {
         _rawData = rawData;
+        _originalRawData = rawData;  // Keep the original
         _currentFilePath = filePath;
         
         // Generate preview data
         _previewData = PreviewGenerator.generatePreview(rawData);
+        _originalPreviewData = _previewData;  // Keep the original preview
         
         // Initialize pipeline for this image
         _pipeline.initialize(filePath);
         
         // Try to load sidecar adjustments if they exist
         await _pipeline.loadFromSidecar();
+        
+        // Check if we have a crop from the sidecar
+        _hasCrop = _pipeline.cropRect != null && 
+                   (_pipeline.cropRect!.left != 0 || _pipeline.cropRect!.top != 0 ||
+                    _pipeline.cropRect!.right != 1 || _pipeline.cropRect!.bottom != 1);
         
         // Initialize history with loaded state
         _historyManager.initialize(_pipeline);
@@ -294,18 +329,24 @@ class ImageState extends ChangeNotifier {
   }
   
   Future<void> _processOriginalImages() async {
-    if (_previewData == null) return;
+    if (_originalPreviewData == null) return;
     
     try {
-      // Create an empty pipeline (no adjustments) for original
-      final emptyPipeline = EditPipeline();
-      emptyPipeline.initialize(_currentFilePath ?? '');
+      // Create a pipeline with adjustments but NO crop for original
+      final pipelineWithoutCrop = EditPipeline();
+      pipelineWithoutCrop.initialize(_currentFilePath ?? '');
       
-      // Process preview without adjustments
+      // Copy all adjustments from the current pipeline
+      for (final adjustment in _pipeline.adjustments) {
+        pipelineWithoutCrop.updateAdjustment(adjustment);
+      }
+      // But DON'T copy the crop rect - leave it null
+      
+      // Process preview with adjustments (but no crop) using ORIGINAL data
       final processor = await ProcessorFactory.getProcessor();
       final originalPreview = await processor.processImage(
-        _previewData!,
-        emptyPipeline,
+        _originalPreviewData!,
+        pipelineWithoutCrop,
       );
       
       // Dispose old original preview
@@ -313,12 +354,12 @@ class ImageState extends ChangeNotifier {
       _originalPreviewImage = originalPreview;
       
       // Also process full resolution original in background
-      if (_rawData != null) {
+      if (_originalRawData != null) {
         Timer(const Duration(milliseconds: 500), () async {
           final processor = await ProcessorFactory.getProcessor();
           final originalFull = await processor.processImage(
-            _rawData!,
-            emptyPipeline,
+            _originalRawData!,
+            pipelineWithoutCrop,
           );
           _originalFullImage?.dispose();
           _originalFullImage = originalFull;
@@ -350,12 +391,15 @@ class ImageState extends ChangeNotifier {
     _originalFullImage = null;
     _rawData = null;
     _previewData = null;
+    _originalRawData = null;
+    _originalPreviewData = null;
     _currentFilePath = null;
     _isLoading = false;
     _isProcessing = false;
     _isProcessingFull = false;
     _error = null;
     _showOriginal = false;
+    _hasCrop = false;
     notifyListeners();
   }
 

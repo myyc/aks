@@ -94,6 +94,39 @@ class Toolbar extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             const Spacer(),
+            // Crop indicator
+            if (imageState.hasCrop && !cropState.isActive)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: const Color(0xFF6366F1).withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.crop,
+                      size: 16,
+                      color: const Color(0xFF6366F1),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Cropped',
+                      style: TextStyle(
+                        color: const Color(0xFF6366F1),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(width: 8),
             // Window close button (not shown on macOS)
             if (!Platform.isMacOS) ...[
               Material(

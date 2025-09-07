@@ -302,18 +302,11 @@ class _ImageViewerState extends State<ImageViewer> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              // The actual image - always show current image with adjustments
+                              // Show original during crop mode if image has been cropped, otherwise current
                               RawImage(
-                                image: imageState.currentImage,
+                                image: imageState.getDisplayImage(cropState.isActive),
                                 fit: BoxFit.fill,
                               ),
-                              // Show applied crop overlay when crop is applied but not being edited
-                              if (!cropState.isActive && imageState.pipeline.cropRect != null)
-                                AppliedCropOverlay(
-                                  imageSize: Size(displayWidth, displayHeight),
-                                  cropRect: imageState.pipeline.cropRect!,
-                                  overlayOpacity: 0.7, // Can be made configurable
-                                ),
                               // Crop overlay for active editing
                               if (cropState.isActive)
                                 CropOverlay(
@@ -328,6 +321,69 @@ class _ImageViewerState extends State<ImageViewer> {
                         ),
                       ),
                     ),
+                    // Fixed aspect ratio selector at the top
+                    if (cropState.isActive)
+                      Positioned(
+                        top: 20,
+                        left: 20,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              DropdownButton<AspectRatioPreset>(
+                                value: cropState.aspectRatioPreset,
+                                dropdownColor: Colors.black.withOpacity(0.9),
+                                style: AppTextStyles.inter(color: Colors.white),
+                                underline: const SizedBox.shrink(),
+                                onChanged: (preset) {
+                                  if (preset != null) {
+                                    cropState.setAspectRatioPreset(preset, displayWidth, displayHeight);
+                                  }
+                                },
+                                items: AspectRatioPreset.values.map((preset) {
+                                  return DropdownMenuItem(
+                                    value: preset,
+                                    child: Text(preset.getLabel(cropState.isPortraitOrientation)),
+                                  );
+                                }).toList(),
+                              ),
+                              // Orientation toggle button (hidden only for Square format)
+                              if (cropState.aspectRatioPreset != AspectRatioPreset.square) ...[
+                                const SizedBox(width: 8),
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () => cropState.toggleOrientation(displayWidth, displayHeight),
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.3),
+                                          width: 1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Icon(
+                                        cropState.isPortraitOrientation 
+                                          ? Icons.crop_portrait 
+                                          : Icons.crop_landscape,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
                     // Fixed crop control buttons at the bottom
                     if (cropState.isActive)
                   Positioned(
