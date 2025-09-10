@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Run Tests
+  test-common:
+    name: Run Common Tests
     runs-on: [self-hosted, macOS]
     steps:
       - name: Checkout code
@@ -25,13 +25,35 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Run tests
-        run: ./scripts/ci-test.sh
+      - name: Run common tests
+        run: ./scripts/ci-test-common.sh
+
+  test-linux:
+    name: Run Linux-Specific Tests
+    runs-on: [self-hosted, Linux]
+    needs: test-common
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        run: |
+          export PATH="$PATH:$HOME/flutter/bin"
+          flutter --version
+          flutter doctor -v
+
+      - name: Get dependencies
+        run: |
+          export PATH="$PATH:$HOME/flutter/bin"
+          flutter pub get
+
+      - name: Run Linux-specific tests
+        run: ./scripts/ci-test-linux.sh
 
   build-macos:
     name: Build macOS
     runs-on: [self-hosted, macOS]
-    needs: test
+    needs: [test-common, test-linux]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -59,7 +81,7 @@ jobs:
   build-linux:
     name: Build Linux (Flatpak)
     runs-on: [self-hosted, Linux]
-    needs: test
+    needs: [test-common, test-linux]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

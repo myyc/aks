@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
+
+@TestOn('linux')
 import 'package:aks/services/processors/vulkan_processor.dart';
 import 'package:aks/services/processors/vulkan/vulkan_bindings.dart';
 import 'package:aks/models/crop_state.dart';

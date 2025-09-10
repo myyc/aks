@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter_test/flutter_test.dart';
+
+@TestOn('linux')
 import 'package:aks/services/processors/cpu_processor.dart';
 import 'package:aks/services/processors/vulkan_processor.dart';
 import 'package:aks/services/processors/vulkan/vulkan_bindings.dart';
