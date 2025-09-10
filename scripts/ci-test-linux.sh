@@ -22,9 +22,9 @@ fi
 
 # Run Linux-specific tests
 echo "Running Linux-specific tests..."
-if [ -d "test/processors" ] && [ "$(ls -A test/processors/*.dart 2>/dev/null)" ]; then
-    # Run tests with linux tag only
-    flutter test --tags=linux --no-pub test/processors/
+if [ -d "test/linux" ] && [ "$(ls -A test/linux/*.dart 2>/dev/null)" ]; then
+    # Run tests in test/linux/ directory
+    flutter test --no-pub test/linux/
     
     echo "Linux-specific tests completed!"
 else
