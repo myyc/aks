@@ -53,7 +53,7 @@ jobs:
   build-macos:
     name: Build macOS
     runs-on: [self-hosted, macOS]
-    needs: [test-common, test-linux]
+    needs: test-common
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
