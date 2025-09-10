@@ -36,7 +36,10 @@ VERSION=$(grep "^version:" pubspec.yaml | cut -d' ' -f2 | cut -d'+' -f1)
 echo "Built version: $VERSION"
 
 # Optional: Create a DMG for distribution
-if command -v create-dmg &> /dev/null; then
+# Skip DMG creation in CI environments to avoid timeouts
+if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ]; then
+    echo "Running in CI environment, skipping DMG creation"
+elif command -v create-dmg &> /dev/null; then
     echo "Creating DMG..."
     create-dmg \
         --volname "aks" \

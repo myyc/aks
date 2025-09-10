@@ -75,7 +75,6 @@ jobs:
           name: aks-macos
           path: |
             build/macos/Build/Products/Release/aks.app
-            *.dmg
           retention-days: 7
 
   build-linux:
