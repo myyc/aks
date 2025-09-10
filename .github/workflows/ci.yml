@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  test-common:
+    name: Run Common Tests
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run common tests
+        run: ./scripts/ci-test-common.sh
+
+  test-linux:
+    name: Run Linux-Specific Tests
+    runs-on: [self-hosted, Linux]
+    needs: test-common
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        run: |
+          export PATH="$PATH:$HOME/flutter/bin"
+          flutter --version
+          flutter doctor -v
+
+      - name: Get dependencies
+        run: |
+          export PATH="$PATH:$HOME/flutter/bin"
+          flutter pub get
+
+      - name: Run Linux-specific tests
+        run: ./scripts/ci-test-linux.sh
+
+  build-macos:
+    name: Build macOS
+    runs-on: [self-hosted, macOS]
+    needs: test-common
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build macOS app
+        run: ./scripts/ci-build-macos.sh
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aks-macos
+          path: |
+            build/macos/Build/Products/Release/aks.app
+          retention-days: 7
+
+  build-linux:
+    name: Build Linux (Flatpak)
+    runs-on: [self-hosted, Linux]
+    needs: [test-common, test-linux]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        run: |
+          export PATH="$PATH:$HOME/flutter/bin"
+          flutter --version
+          flutter doctor -v
+
+      - name: Get dependencies
+        run: |
+          export PATH="$PATH:$HOME/flutter/bin"
+          flutter pub get
+
+      - name: Build Linux app
+        run: |
+          export PATH="$PATH:$HOME/flutter/bin"
+          ./scripts/ci-build-linux-native.sh
+
+      - name: Upload Linux Flatpak
+        uses: actions/upload-artifact@v4
+        with:
+          name: aks-linux-flatpak
+          path: aks.flatpak
+          retention-days: 7
+
+  
+  release:
+    name: Create Release
+    runs-on: [self-hosted, macOS]
+    needs: [build-macos, build-linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            aks-macos/aks.app
+            aks-linux-flatpak/aks.flatpak
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

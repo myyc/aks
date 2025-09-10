@@ -1,15 +1,36 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show TargetPlatform;
 
 /// Test helper to ensure native libraries are built before running tests
 class TestHelper {
   static bool _initialized = false;
   
-  /// Ensure test environment is set up
+  /// Ensure test environment is set up for the current platform
   static Future<void> ensureInitialized() async {
     if (_initialized) return;
     
-    print('Checking test environment...');
+    print('Checking test environment for ${currentPlatform}...');
     
+    // Only build Linux libraries on Linux
+    if (currentPlatform == 'linux') {
+      await _ensureLinuxLibraries();
+    } else {
+      print('Skipping native library build on $currentPlatform');
+    }
+    
+    _initialized = true;
+  }
+  
+  /// Get current platform string
+  static String get currentPlatform {
+    if (Platform.isLinux) return 'linux';
+    if (Platform.isMacOS) return 'macos';
+    if (Platform.isWindows) return 'windows';
+    return 'unknown';
+  }
+  
+  /// Ensure Linux native libraries are built and available
+  static Future<void> _ensureLinuxLibraries() async {
     // Check if libraries exist
     final librawPath = 'linux/libraw_processor.so';
     final vulkanPath = 'linux/libvulkan_processor.so';
@@ -33,7 +54,7 @@ class TestHelper {
     }
     
     if (needsBuild) {
-      print('Building native libraries...');
+      print('Building Linux native libraries...');
       
       // Check if build script exists
       final buildScript = File('scripts/build_test_libs.sh');
@@ -54,12 +75,24 @@ class TestHelper {
         throw Exception('Failed to build native libraries');
       }
       
-      print('Native libraries built successfully');
+      print('Linux native libraries built successfully');
     } else {
-      print('All native libraries found');
+      print('All Linux native libraries found');
     }
-    
-    _initialized = true;
+  }
+  
+  /// Check if a specific library is available
+  static bool isLibraryAvailable(String libraryName) {
+    switch (libraryName) {
+      case 'vulkan':
+        return currentPlatform == 'linux' && 
+               File('linux/libvulkan_processor.so').existsSync();
+      case 'raw':
+        return currentPlatform == 'linux' && 
+               File('linux/libraw_processor.so').existsSync();
+      default:
+        return false;
+    }
   }
   
   /// Clean up test artifacts if needed
