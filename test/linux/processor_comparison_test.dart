@@ -12,7 +12,7 @@ import 'package:aks/models/edit_pipeline.dart';
 import 'package:aks/models/crop_state.dart';
 import 'package:aks/services/raw_processor.dart';
 import 'package:aks/services/image_processor.dart';
-import '../../test_helper.dart';
+import '../test_helper.dart';
 
 void main() {
   group('Processor Comparison Tests', () {

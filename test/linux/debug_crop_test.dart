@@ -6,7 +6,7 @@ import 'package:aks/services/processors/vulkan/vulkan_bindings.dart';
 import 'package:aks/models/crop_state.dart';
 import 'package:aks/services/processors/image_processor_interface.dart';
 import 'package:aks/services/raw_processor.dart';
-import '../../test_helper.dart';
+import '../test_helper.dart';
 
 void main() {
   test('Debug crop calculations', () async {
