@@ -180,10 +180,11 @@ void main() {
     uint sourceHeight = uint(params.imageHeight);
     
     // Calculate crop dimensions
-    uint cropStartX = uint(params.cropLeft * sourceWidth);
-    uint cropStartY = uint(params.cropTop * sourceHeight);
-    uint cropEndX = uint(params.cropRight * sourceWidth);
-    uint cropEndY = uint(params.cropBottom * sourceHeight);
+    // Use round() to match CPU implementation
+    uint cropStartX = uint(round(params.cropLeft * sourceWidth));
+    uint cropStartY = uint(round(params.cropTop * sourceHeight));
+    uint cropEndX = uint(round(params.cropRight * sourceWidth));
+    uint cropEndY = uint(round(params.cropBottom * sourceHeight));
     uint cropWidth = cropEndX - cropStartX;
     uint cropHeight = cropEndY - cropStartY;
     

@@ -465,8 +465,14 @@ static int vk_process_image_internal(
         crop_bottom = adjustments[17];
         
         // Calculate cropped dimensions
-        output_width = (int)((crop_right - crop_left) * width);
-        output_height = (int)((crop_bottom - crop_top) * height);
+        // Match CPU's approach: round to pixels first, then subtract
+        int crop_left_px = (int)round(crop_left * width);
+        int crop_top_px = (int)round(crop_top * height);
+        int crop_right_px = (int)round(crop_right * width);
+        int crop_bottom_px = (int)round(crop_bottom * height);
+        
+        output_width = crop_right_px - crop_left_px;
+        output_height = crop_bottom_px - crop_top_px;
         
         VLOG("vk_process_image_internal: Cropping to %dx%d (from %.2f,%.2f to %.2f,%.2f)\n",
              output_width, output_height, crop_left, crop_top, crop_right, crop_bottom);
@@ -1060,8 +1066,21 @@ int vk_process_image_with_curves_and_crop(
     }
     
     // Calculate output dimensions
-    *output_width = (int)((crop_right - crop_left) * width);
-    *output_height = (int)((crop_bottom - crop_top) * height);
+    // Match CPU's approach: round to pixels first, then subtract
+    int crop_left_px = (int)round(crop_left * width);
+    int crop_top_px = (int)round(crop_top * height);
+    int crop_right_px = (int)round(crop_right * width);
+    int crop_bottom_px = (int)round(crop_bottom * height);
+    
+    *output_width = crop_right_px - crop_left_px;
+    *output_height = crop_bottom_px - crop_top_px;
+    
+    fprintf(stderr, "DEBUG vk_process_image_with_curves_and_crop:\n");
+    fprintf(stderr, "  Input: %dx%d\n", width, height);
+    fprintf(stderr, "  Crop: %.4f,%.4f to %.4f,%.4f\n", crop_left, crop_top, crop_right, crop_bottom);
+    fprintf(stderr, "  Pixels: left=%d, top=%d, right=%d, bottom=%d\n", 
+            crop_left_px, crop_top_px, crop_right_px, crop_bottom_px);
+    fprintf(stderr, "  Output: %dx%d\n", *output_width, *output_height);
     
     // Create extended adjustments array with crop parameters
     // We need 18 floats total (14 base + 4 crop parameters)
