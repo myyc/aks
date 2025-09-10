@@ -26,6 +26,14 @@ dart format --set-exit-if-changed --output=none . || {
     # exit 1
 }
 
+# Build native libraries for tests
+echo "Building native libraries..."
+if [ -f "scripts/build_test_libs.sh" ]; then
+    bash scripts/build_test_libs.sh
+else
+    echo "Warning: build_test_libs.sh not found, skipping native library build"
+fi
+
 # Run tests
 echo "Running unit tests..."
 if [ -d "test" ] && [ "$(ls -A test/*.dart 2>/dev/null)" ]; then
