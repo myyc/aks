@@ -30,7 +30,8 @@ dart format --set-exit-if-changed --output=none . || {
 echo "Running common tests..."
 if [ -d "test" ] && [ "$(ls -A test/*.dart 2>/dev/null)" ]; then
     # Run tests in test/ directory but exclude test/linux/
-    flutter test --coverage --no-pub test/ --exclude "test/linux/**"
+    # Run specific test directories instead of using non-existent --exclude
+    flutter test --coverage --no-pub test/models/ test/widget_test.dart
     
     # If you want to check coverage threshold (requires lcov)
     if command -v lcov &> /dev/null && [ -f "coverage/lcov.info" ]; then
