@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:ffi/ffi.dart';
-import '../ffi/libraw_bindings.dart';
+import '../ffi/raw/libraw_bindings.dart';
 import 'image_processor.dart' as img_proc;
 
 class RawProcessor {

@@ -23,9 +23,19 @@ class ProcessorFactory {
   static Future<ImageProcessorInterface> _createProcessor() async {
     print('ProcessorFactory: Detecting best processor for platform...');
     
-    // Check if GPU acceleration is enabled by user
+    // Check environment variable to enable GPU processing
+    // Default is false (use CPU) unless explicitly enabled
+    final enableGpu = Platform.environment['AKS_ENABLE_GPU']?.toLowerCase();
+    final gpuEnabled = enableGpu == 'true' || enableGpu == '1';
+    
+    if (!gpuEnabled) {
+      print('ProcessorFactory: GPU not enabled (set AKS_ENABLE_GPU=true to enable), using CPU processor');
+      return CpuProcessor();
+    }
+    
+    // Check if GPU acceleration is enabled by user preference
     if (!_useGpu) {
-      print('ProcessorFactory: GPU disabled by user, using CPU processor');
+      print('ProcessorFactory: GPU disabled by user preference, using CPU processor');
       return CpuProcessor();
     }
     
@@ -33,7 +43,7 @@ class ProcessorFactory {
     if (Platform.isLinux || Platform.isWindows) {
       // Check for Vulkan availability
       if (await VulkanProcessor.isAvailable()) {
-        print('ProcessorFactory: Vulkan available, using GPU processor');
+        print('ProcessorFactory: Vulkan available and enabled, using GPU processor');
         return VulkanProcessor();
       }
       print('ProcessorFactory: Vulkan not available, falling back to CPU');

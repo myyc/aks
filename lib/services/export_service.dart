@@ -8,6 +8,7 @@ import 'image_manipulation_service.dart';
 import 'image_processor.dart';
 import 'preferences_service.dart';
 import '../models/crop_state.dart';
+import '../ffi/jpeg/jpeg_processor.dart';
 
 /// Export formats supported
 enum ExportFormat {
@@ -55,22 +56,16 @@ class ExportService {
     int quality = 90,
   }) async {
     try {
-      // Convert image to byte data
-      final byteData = await image.toByteData(
-        format: ui.ImageByteFormat.png, // First get as PNG
+      
+      // Compress image to JPEG
+      final jpegData = await JpegProcessor.compressImage(
+        image: image,
+        quality: quality,
       );
-      
-      if (byteData == null) {
-        throw Exception('Failed to convert image to byte data');
-      }
-      
-      // For now, save as PNG since Flutter doesn't have built-in JPEG encoder
-      // TODO: Add proper JPEG encoding with quality control
-      final buffer = byteData.buffer.asUint8List();
       
       // Write to file
       final file = File(outputPath);
-      await file.writeAsBytes(buffer);
+      await file.writeAsBytes(jpegData);
       
       return true;
     } catch (e) {

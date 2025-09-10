@@ -148,6 +148,117 @@ class OptimizedProcessor {
     }
   }
   
+  /// Generate highlights/shadows lookup tables (returns factor * 256 for integer math)
+  static (Uint16List, Uint16List) generateHighlightsShadowsLUTs(double highlights, double shadows) {
+    final highlightsLUT = Uint16List(256);
+    final shadowsLUT = Uint16List(256);
+    
+    for (int i = 0; i < 256; i++) {
+      final luminance = i / 255.0;
+      
+      // Shadows: affect values below 0.5 luminance
+      if (shadows != 0 && luminance < 0.5) {
+        final shadowFactor = 1 + (shadows / 100) * (1 - luminance * 2);
+        // Store as factor * 256 for integer multiplication
+        shadowsLUT[i] = (shadowFactor * 256).round().clamp(0, 512);
+      } else {
+        shadowsLUT[i] = 256; // Identity factor
+      }
+      
+      // Highlights: affect values above 0.5 luminance
+      if (highlights != 0 && luminance > 0.5) {
+        final highlightFactor = 1 + (highlights / 100) * ((luminance - 0.5) * 2);
+        // Store as factor * 256 for integer multiplication
+        highlightsLUT[i] = (highlightFactor * 256).round().clamp(0, 512);
+      } else {
+        highlightsLUT[i] = 256; // Identity factor
+      }
+    }
+    
+    return (highlightsLUT, shadowsLUT);
+  }
+  
+  /// Apply highlights and shadows using pre-calculated LUTs
+  static void applyHighlightsShadowsLUT(Uint8List pixels, double highlights, double shadows) {
+    if (highlights == 0 && shadows == 0) return;
+    
+    // Generate combined LUTs
+    final (highlightsLUT, shadowsLUT) = generateHighlightsShadowsLUTs(highlights, shadows);
+    
+    // Pre-calculate luminance weights as integers for speed
+    const rWeight = 77;  // 0.299 * 256
+    const gWeight = 150; // 0.587 * 256
+    const bWeight = 29;  // 0.114 * 256
+    
+    for (int i = 0; i < pixels.length; i += 3) {
+      final r = pixels[i];
+      final g = pixels[i + 1];
+      final b = pixels[i + 2];
+      
+      // Calculate luminance using integer math
+      final lum = ((r * rWeight + g * gWeight + b * bWeight) >> 8).clamp(0, 255);
+      
+      // Get adjustment factors from LUTs
+      final highlightFactor = highlightsLUT[lum];
+      final shadowFactor = shadowsLUT[lum];
+      
+      // Apply the stronger effect (highlights or shadows)
+      if (lum < 128) {
+        // Shadow region - apply shadow adjustment
+        pixels[i] = ((r * shadowFactor) >> 8).clamp(0, 255);
+        pixels[i + 1] = ((g * shadowFactor) >> 8).clamp(0, 255);
+        pixels[i + 2] = ((b * shadowFactor) >> 8).clamp(0, 255);
+      } else {
+        // Highlight region - apply highlight adjustment
+        pixels[i] = ((r * highlightFactor) >> 8).clamp(0, 255);
+        pixels[i + 1] = ((g * highlightFactor) >> 8).clamp(0, 255);
+        pixels[i + 2] = ((b * highlightFactor) >> 8).clamp(0, 255);
+      }
+    }
+  }
+  
+  /// Optimized vibrance using integer math
+  static void applyVibranceFast(Uint8List pixels, double vibrance) {
+    if (vibrance == 0) return;
+    
+    // Pre-calculate luminance weights
+    const rWeight = 77;  // 0.299 * 256
+    const gWeight = 150; // 0.587 * 256
+    const bWeight = 29;  // 0.114 * 256
+    
+    // Pre-calculate vibrance factor scale
+    final vibScale = (vibrance * 256 / 100).round();
+    
+    for (int i = 0; i < pixels.length; i += 3) {
+      final r = pixels[i];
+      final g = pixels[i + 1];
+      final b = pixels[i + 2];
+      
+      // Fast min/max using conditionals (faster than array operations)
+      int max = r;
+      int min = r;
+      if (g > max) max = g;
+      if (b > max) max = b;
+      if (g < min) min = g;
+      if (b < min) min = b;
+      
+      // Calculate saturation (0-255 range)
+      final sat = max - min;
+      
+      // Calculate vibrance factor based on current saturation
+      // Less saturated colors get more boost
+      final vibFactor = 256 + ((256 - sat) * vibScale >> 8);
+      
+      // Calculate gray value
+      final gray = (r * rWeight + g * gWeight + b * bWeight) >> 8;
+      
+      // Apply vibrance
+      pixels[i] = ((gray + ((r - gray) * vibFactor >> 8))).clamp(0, 255);
+      pixels[i + 1] = ((gray + ((g - gray) * vibFactor >> 8))).clamp(0, 255);
+      pixels[i + 2] = ((gray + ((b - gray) * vibFactor >> 8))).clamp(0, 255);
+    }
+  }
+  
   /// Clear cached lookup tables
   static void clearCache() {
     _exposureLUT = null;

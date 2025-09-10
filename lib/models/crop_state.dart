@@ -361,18 +361,35 @@ class CropState extends ChangeNotifier {
     final targetRatio = _aspectRatioPreset.getRatioWithOrientation(_isPortraitOrientation);
     if (targetRatio == null) return;
     
-    final imageRatio = imageWidth / imageHeight;
     double cropWidth, cropHeight;
     
+    // For portrait crops (targetRatio < 1), we want height > width
+    // For landscape crops (targetRatio > 1), we want width > height
+    
     // Calculate the largest possible crop that fits the image
-    if (imageRatio > targetRatio) {
-      // Image is wider than target ratio - constrain by height
+    // Always think in terms of the crop's aspect ratio, not the image's
+    if (targetRatio < 1.0) {
+      // Portrait crop (taller than wide)
+      // Try to maximize the height first
       cropHeight = imageHeight;
-      cropWidth = imageHeight * targetRatio;
+      cropWidth = cropHeight * targetRatio;
+      
+      // If it doesn't fit horizontally, constrain by width
+      if (cropWidth > imageWidth) {
+        cropWidth = imageWidth;
+        cropHeight = cropWidth / targetRatio;
+      }
     } else {
-      // Image is taller than target ratio - constrain by width
+      // Landscape or square crop (wider than tall or equal)
+      // Try to maximize the width first
       cropWidth = imageWidth;
-      cropHeight = imageWidth / targetRatio;
+      cropHeight = cropWidth / targetRatio;
+      
+      // If it doesn't fit vertically, constrain by height
+      if (cropHeight > imageHeight) {
+        cropHeight = imageHeight;
+        cropWidth = cropHeight * targetRatio;
+      }
     }
     
     // Convert to normalized coordinates (0-1)

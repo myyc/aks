@@ -57,19 +57,37 @@ pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 # LibRaw for RAW image processing
 pkg_check_modules(LIBRAW REQUIRED libraw)
 
-# Add raw_processor library
-set_source_files_properties(raw_processor/raw_processor.c PROPERTIES LANGUAGE C)
+# libjpeg-turbo for JPEG encoding
+pkg_check_modules(JPEGturbo REQUIRED libturbojpeg)
+
+# Add raw_processor library (platform-specific wrapper)
+set_source_files_properties(raw_processor/raw_processor_wrapper.c PROPERTIES LANGUAGE C)
 add_library(raw_processor SHARED
-  raw_processor/raw_processor.c
+  raw_processor/raw_processor_wrapper.c
 )
 set_target_properties(raw_processor PROPERTIES LINKER_LANGUAGE C)
 
 target_include_directories(raw_processor PRIVATE
   ${LIBRAW_INCLUDE_DIRS}
+  ../lib/ffi/raw
 )
 
 target_link_libraries(raw_processor
   ${LIBRAW_LIBRARIES}
+)
+
+# Add jpeg_binding library (platform-specific wrapper)
+add_library(jpeg_binding SHARED
+  ../lib/ffi/jpeg/jpeg_binding.cpp
+)
+
+target_include_directories(jpeg_binding PRIVATE
+  ${JPEGturbo_INCLUDE_DIRS}
+  ../lib/ffi/jpeg
+)
+
+target_link_libraries(jpeg_binding
+  ${JPEGturbo_LIBRARIES}
 )
 
 # Vulkan support (optional)
@@ -174,6 +192,10 @@ endforeach(bundled_library)
 
 # Install the raw_processor library to the bundle
 install(TARGETS raw_processor DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
+# Install the jpeg_binding library to the bundle
+install(TARGETS jpeg_binding DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
 # Install vulkan_processor if built
