@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 #include <errno.h>
 
 static char last_error[256] = {0};
@@ -158,22 +159,22 @@ ExifData* raw_processor_get_exif(void* processor) {
     }
     
     // Extract camera info
-    if (lr->idata.make) {
+    if (lr->idata.make[0] != '\0') {
         exif->make = strdup(lr->idata.make);
     }
-    if (lr->idata.model) {
+    if (lr->idata.model[0] != '\0') {
         exif->model = strdup(lr->idata.model);
     }
-    if (lr->idata.software) {
+    if (lr->idata.software[0] != '\0') {
         exif->software = strdup(lr->idata.software);
     }
     
     // Extract lens info
     libraw_lensinfo_t* lensinfo = &lr->lens;
-    if (lensinfo->LensMake) {
+    if (lensinfo->LensMake[0] != '\0') {
         exif->lens_make = strdup(lensinfo->LensMake);
     }
-    if (lensinfo->Lens) {
+    if (lensinfo->Lens[0] != '\0') {
         exif->lens_model = strdup(lensinfo->Lens);
     }
     
@@ -188,16 +189,23 @@ ExifData* raw_processor_get_exif(void* processor) {
         exif->focal_length_35mm = lr->lens.FocalLengthIn35mmFormat;
     }
     
-    // Extract timestamp
-    exif->datetime = lr->other.timestamp;
+    // Extract timestamp (convert to string)
+    if (lr->other.timestamp > 0) {
+        char time_str[20];
+        struct tm* tm_info = localtime(&lr->other.timestamp);
+        strftime(time_str, sizeof(time_str), "%Y:%m:%d %H:%M:%S", tm_info);
+        exif->datetime = strdup(time_str);
+    } else {
+        exif->datetime = strdup("");
+    }
     
-    // Extract exposure info
-    exif->exposure_program = lr->other.shooting_mode;
-    exif->exposure_mode = lr->other.exposure_mode;
-    exif->metering_mode = lr->other.metering_mode;
-    exif->exposure_compensation = lr->other.exposure_corr;
-    exif->flash_mode = lr->other.flash_used;
-    exif->white_balance = lr->other.shot_select;
+    // Extract exposure info - using available fields
+    exif->exposure_program = 0; // Not available in lr->other
+    exif->exposure_mode = 0; // Not available in lr->other
+    exif->metering_mode = 0; // Not available in lr->other
+    exif->exposure_compensation = 0.0; // Not available in lr->other
+    exif->flash_mode = 0; // Not available in lr->other
+    exif->white_balance = lr->other.shot_order; // Using shot_order instead of shot_select
     
     return exif;
 }

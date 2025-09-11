@@ -149,22 +149,22 @@ ExifData* raw_processor_get_exif(void* processor) {
     }
     
     // Extract camera info
-    if (lr->idata.make) {
+    if (lr->idata.make[0] != '\0') {
         exif->make = strdup(lr->idata.make);
     }
-    if (lr->idata.model) {
+    if (lr->idata.model[0] != '\0') {
         exif->model = strdup(lr->idata.model);
     }
-    if (lr->idata.software) {
+    if (lr->idata.software[0] != '\0') {
         exif->software = strdup(lr->idata.software);
     }
     
     // Extract lens info
     libraw_lensinfo_t* lensinfo = &lr->lens;
-    if (lensinfo->LensMake) {
+    if (lensinfo->LensMake[0] != '\0') {
         exif->lens_make = strdup(lensinfo->LensMake);
     }
-    if (lensinfo->Lens) {
+    if (lensinfo->Lens[0] != '\0') {
         exif->lens_model = strdup(lensinfo->Lens);
     }
     
