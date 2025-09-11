@@ -23,6 +23,27 @@ typedef struct {
     size_t size;
 } RawImageData;
 
+// EXIF metadata structures
+typedef struct {
+    char* make;
+    char* model;
+    char* lens_make;
+    char* lens_model;
+    char* software;
+    int iso_speed;
+    double aperture;
+    double shutter_speed;
+    double focal_length;
+    double focal_length_35mm;
+    const char* datetime;
+    int exposure_program;
+    int exposure_mode;
+    int metering_mode;
+    double exposure_compensation;
+    int flash_mode;
+    int white_balance;
+} ExifData;
+
 // Platform detection
 #if defined(_WIN32) || defined(_WIN64)
     #define PLATFORM_WINDOWS 1
@@ -39,7 +60,9 @@ void* raw_processor_init();
 int raw_processor_open(void* processor, const char* filename);
 int raw_processor_process(void* processor);
 RawImageData* raw_processor_get_rgb(void* processor);
+ExifData* raw_processor_get_exif(void* processor);
 void raw_processor_free_image(RawImageData* image);
+void raw_processor_free_exif(ExifData* exif);
 void raw_processor_cleanup(void* processor);
 const char* raw_processor_get_error();
 

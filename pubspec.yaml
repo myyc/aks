@@ -74,10 +74,12 @@ dev_dependencies:
 ffigen:
   name: LibRawBindings
   description: Bindings for LibRaw C API
-  output: lib/ffi/libraw_bindings.dart
+  output: lib/ffi/raw/libraw_bindings.dart
   headers:
     entry-points:
       - linux/raw_processor/raw_processor.h
+      - macos/raw_processor/raw_processor.h
+  compiler-opts: '-I/usr/include -Ilib/ffi/raw'
   preamble: |
     // AUTO-GENERATED FILE. DO NOT MODIFY.
 

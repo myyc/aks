@@ -140,3 +140,75 @@ void raw_processor_cleanup(void* processor) {
 const char* raw_processor_get_error() {
     return last_error;
 }
+
+// Extract EXIF metadata from the opened RAW file
+ExifData* raw_processor_get_exif(void* processor) {
+    if (!processor) {
+        snprintf(last_error, sizeof(last_error), "Invalid processor");
+        return NULL;
+    }
+    
+    libraw_data_t* lr = (libraw_data_t*)processor;
+    
+    // Allocate EXIF structure
+    ExifData* exif = (ExifData*)calloc(1, sizeof(ExifData));
+    if (!exif) {
+        snprintf(last_error, sizeof(last_error), "Memory allocation failed for EXIF");
+        return NULL;
+    }
+    
+    // Extract camera info
+    if (lr->idata.make) {
+        exif->make = strdup(lr->idata.make);
+    }
+    if (lr->idata.model) {
+        exif->model = strdup(lr->idata.model);
+    }
+    if (lr->idata.software) {
+        exif->software = strdup(lr->idata.software);
+    }
+    
+    // Extract lens info
+    libraw_lensinfo_t* lensinfo = &lr->lens;
+    if (lensinfo->LensMake) {
+        exif->lens_make = strdup(lensinfo->LensMake);
+    }
+    if (lensinfo->Lens) {
+        exif->lens_model = strdup(lensinfo->Lens);
+    }
+    
+    // Extract shooting info
+    exif->iso_speed = lr->other.iso_speed;
+    exif->aperture = lr->other.aperture;
+    exif->shutter_speed = lr->other.shutter;
+    exif->focal_length = lr->other.focal_len;
+    
+    // Extract 35mm equivalent focal length if available
+    if (lr->lens.FocalLengthIn35mmFormat > 0) {
+        exif->focal_length_35mm = lr->lens.FocalLengthIn35mmFormat;
+    }
+    
+    // Extract timestamp
+    exif->datetime = lr->other.timestamp;
+    
+    // Extract exposure info
+    exif->exposure_program = lr->other.shooting_mode;
+    exif->exposure_mode = lr->other.exposure_mode;
+    exif->metering_mode = lr->other.metering_mode;
+    exif->exposure_compensation = lr->other.exposure_corr;
+    exif->flash_mode = lr->other.flash_used;
+    exif->white_balance = lr->other.shot_select;
+    
+    return exif;
+}
+
+void raw_processor_free_exif(ExifData* exif) {
+    if (exif) {
+        if (exif->make) free(exif->make);
+        if (exif->model) free(exif->model);
+        if (exif->lens_make) free(exif->lens_make);
+        if (exif->lens_model) free(exif->lens_model);
+        if (exif->software) free(exif->software);
+        free(exif);
+    }
+}

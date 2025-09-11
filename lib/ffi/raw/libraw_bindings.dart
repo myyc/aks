@@ -74,6 +74,21 @@ class LibRawBindings {
   late final _raw_processor_get_rgb = _raw_processor_get_rgbPtr
       .asFunction<ffi.Pointer<RawImageData> Function(ffi.Pointer<ffi.Void>)>();
 
+  ffi.Pointer<ExifData> raw_processor_get_exif(
+    ffi.Pointer<ffi.Void> processor,
+  ) {
+    return _raw_processor_get_exif(processor);
+  }
+
+  late final _raw_processor_get_exifPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<ExifData> Function(ffi.Pointer<ffi.Void>)
+        >
+      >('raw_processor_get_exif');
+  late final _raw_processor_get_exif = _raw_processor_get_exifPtr
+      .asFunction<ffi.Pointer<ExifData> Function(ffi.Pointer<ffi.Void>)>();
+
   void raw_processor_free_image(ffi.Pointer<RawImageData> image) {
     return _raw_processor_free_image(image);
   }
@@ -84,6 +99,17 @@ class LibRawBindings {
       );
   late final _raw_processor_free_image = _raw_processor_free_imagePtr
       .asFunction<void Function(ffi.Pointer<RawImageData>)>();
+
+  void raw_processor_free_exif(ffi.Pointer<ExifData> exif) {
+    return _raw_processor_free_exif(exif);
+  }
+
+  late final _raw_processor_free_exifPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ExifData>)>>(
+        'raw_processor_free_exif',
+      );
+  late final _raw_processor_free_exif = _raw_processor_free_exifPtr
+      .asFunction<void Function(ffi.Pointer<ExifData>)>();
 
   void raw_processor_cleanup(ffi.Pointer<ffi.Void> processor) {
     return _raw_processor_cleanup(processor);
@@ -114,26 +140,73 @@ final class __fsid_t extends ffi.Struct {
 }
 
 final class RawImageInfo extends ffi.Struct {
-  @ffi.Int()
+  @ffi.Uint32()
   external int width;
 
-  @ffi.Int()
+  @ffi.Uint32()
   external int height;
 
-  @ffi.Int()
+  @ffi.Uint16()
   external int bits;
 
-  @ffi.Int()
+  @ffi.Uint16()
   external int colors;
 }
 
 final class RawImageData extends ffi.Struct {
+  external RawImageInfo info;
+
   external ffi.Pointer<ffi.Uint8> data;
 
-  @ffi.Int()
+  @ffi.Size()
   external int size;
+}
 
-  external RawImageInfo info;
+final class ExifData extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> make;
+
+  external ffi.Pointer<ffi.Char> model;
+
+  external ffi.Pointer<ffi.Char> lens_make;
+
+  external ffi.Pointer<ffi.Char> lens_model;
+
+  external ffi.Pointer<ffi.Char> software;
+
+  @ffi.Int()
+  external int iso_speed;
+
+  @ffi.Double()
+  external double aperture;
+
+  @ffi.Double()
+  external double shutter_speed;
+
+  @ffi.Double()
+  external double focal_length;
+
+  @ffi.Double()
+  external double focal_length_35mm;
+
+  external ffi.Pointer<ffi.Char> datetime;
+
+  @ffi.Int()
+  external int exposure_program;
+
+  @ffi.Int()
+  external int exposure_mode;
+
+  @ffi.Int()
+  external int metering_mode;
+
+  @ffi.Double()
+  external double exposure_compensation;
+
+  @ffi.Int()
+  external int flash_mode;
+
+  @ffi.Int()
+  external int white_balance;
 }
 
 const int _STDINT_H = 1;

@@ -11,6 +11,8 @@ import '../services/export_service.dart';
 import 'edit_pipeline.dart';
 import 'history_manager.dart';
 import 'adjustments.dart';
+import 'exif_metadata.dart';
+import 'raw_image_data_result.dart';
 
 class ImageState extends ChangeNotifier {
   ui.Image? _currentImage;
@@ -35,6 +37,7 @@ class ImageState extends ChangeNotifier {
   Timer? _fullResTimer;
   bool _usePreview = true;
   final HistoryManager _historyManager = HistoryManager();
+  ExifMetadata? _exifData;  // EXIF metadata for the current image
 
   ui.Image? get currentImage {
     if (_showOriginal) {
@@ -94,6 +97,9 @@ class ImageState extends ChangeNotifier {
     final cropHeight = (_pipeline.cropRect!.bottom - _pipeline.cropRect!.top) * _originalHeight!;
     return cropHeight.round();
   }
+  
+  // Get EXIF metadata for the current image
+  ExifMetadata? get exifData => _exifData;
   
   // Get dimensions of the image that will be exported (accounting for crop)
   int? get exportImageWidth {
@@ -224,16 +230,27 @@ class ImageState extends ChangeNotifier {
     setLoading(true);
     try {
       // Load raw data
-      final rawData = await RawProcessor.loadRawFile(filePath);
-      if (rawData != null) {
-        _rawData = rawData;
-        _originalRawData = rawData;  // Keep the original
-        _originalWidth = rawData.width;  // Store original dimensions
-        _originalHeight = rawData.height;
+      print('DEBUG: ImageState - Loading RAW file: $filePath');
+      final rawResult = await RawProcessor.loadRawFile(filePath);
+      print('DEBUG: ImageState - RAW file load completed, result: ${rawResult != null}');
+      if (rawResult != null) {
+        print('DEBUG: ImageState - Setting raw data');
+        _rawData = rawResult.pixelData;
+        _originalRawData = rawResult.pixelData;  // Keep the original
+        _originalWidth = rawResult.pixelData.width;  // Store original dimensions
+        _originalHeight = rawResult.pixelData.height;
         _currentFilePath = filePath;
+        print('DEBUG: ImageState - Raw data set successfully');
+        
+        // Extract EXIF metadata
+        print('DEBUG: ImageState - Setting EXIF data: ${rawResult.exifData != null}');
+        _exifData = rawResult.exifData;
+        print('DEBUG: ImageState - EXIF data set');
         
         // Generate preview data
-        _previewData = PreviewGenerator.generatePreview(rawData);
+        print('DEBUG: ImageState - Generating preview');
+        _previewData = PreviewGenerator.generatePreview(rawResult.pixelData);
+        print('DEBUG: ImageState - Preview generated');
         _originalPreviewData = _previewData;  // Keep the original preview
         
         // Initialize pipeline for this image
