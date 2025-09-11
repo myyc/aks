@@ -9,7 +9,7 @@ import '../services/file_service.dart';
 import '../services/export_service.dart';
 import '../widgets/toolbar.dart';
 import '../widgets/image_viewer.dart';
-import '../widgets/editing_panel.dart';
+import '../widgets/tabbed_sidebar.dart';
 import '../widgets/export_dialog.dart';
 import '../widgets/histogram_widget.dart';
 
@@ -212,7 +212,7 @@ class _EditorScreenState extends State<EditorScreen> {
           }
         },
         
-        // Ctrl/Cmd + Z - Undo
+  // Ctrl/Cmd + Z - Undo
         LogicalKeySet(
           LogicalKeyboardKey.meta,
           LogicalKeyboardKey.keyZ,
@@ -318,7 +318,8 @@ class _EditorScreenState extends State<EditorScreen> {
                                 },
                               ),
                             ),
-                            // Dimensions overlay - show original when space is pressed
+                            
+                              // Dimensions overlay - show original when space is pressed
                             if (imageState.showOriginal && imageState.hasImage)
                               _buildDimensionsOverlay(imageState, isOriginal: true),
                             // Show current dimensions briefly after releasing space
@@ -328,8 +329,8 @@ class _EditorScreenState extends State<EditorScreen> {
                         ),
                       ),
                     ),
-                    // Editing panel
-                    const EditingPanel(),
+                    // Tabbed sidebar
+                    const TabbedSidebar(),
                   ],
                 ),
               ),

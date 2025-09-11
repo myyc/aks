@@ -43,13 +43,13 @@ void main() {
       
       if (result != null) {
         // Convert RGB to RGBA for processing
-        final rgbPixels = result.pixels;
-        final rgbaPixels = Uint8List(result.width * result.height * 4);
+        final rgbPixels = result.pixelData.pixels;
+        final rgbaPixels = Uint8List(result.pixelData.width * result.pixelData.height * 4);
         
         // Convert RGB to RGBA
         int rgbIndex = 0;
         int rgbaIndex = 0;
-        for (int i = 0; i < result.width * result.height; i++) {
+        for (int i = 0; i < result.pixelData.width * result.pixelData.height; i++) {
           rgbaPixels[rgbaIndex++] = rgbPixels[rgbIndex++]; // R
           rgbaPixels[rgbaIndex++] = rgbPixels[rgbIndex++]; // G
           rgbaPixels[rgbaIndex++] = rgbPixels[rgbIndex++]; // B
@@ -57,8 +57,8 @@ void main() {
         }
         
         rawPixels = rgbaPixels;
-        imageWidth = result.width;
-        imageHeight = result.height;
+        imageWidth = result.pixelData.width;
+        imageHeight = result.pixelData.height;
         
         print('Test image loaded: ${imageWidth}x${imageHeight}');
         print('Pixel data size: ${rawPixels.length} bytes');
