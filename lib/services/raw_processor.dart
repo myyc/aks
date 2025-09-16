@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:ffi/ffi.dart';
 import '../ffi/raw/libraw_bindings.dart';
+import '../models/exif_metadata.dart';
+import '../models/raw_image_data_result.dart';
 import 'image_processor.dart' as img_proc;
 
 class RawProcessor {
@@ -49,7 +51,7 @@ class RawProcessor {
     throw Exception('Failed to load libraw_processor from any path. Tried: ${libraryPaths.join(", ")}');
   }
 
-  static Future<img_proc.RawPixelData?> loadRawFile(String filePath) async {
+  static Future<RawImageDataResult?> loadRawFile(String filePath) async {
     if (!_initialized) {
       initialize();
     }
@@ -75,19 +77,24 @@ class RawProcessor {
     return await _processInBackground(filePath);
   }
 
-  static Future<img_proc.RawPixelData?> _processInBackground(String filePath) async {
+  static Future<RawImageDataResult?> _processInBackground(String filePath) async {
     Pointer<Void> processor = nullptr;
     Pointer<RawImageData> imageData = nullptr;
 
     try {
+      print('DEBUG: Starting RAW processing for: $filePath');
+      
       // Initialize processor
+      print('DEBUG: Initializing LibRaw processor');
       processor = _bindings.raw_processor_init();
       if (processor == nullptr) {
         final error = _bindings.raw_processor_get_error().cast<Utf8>().toDartString();
         throw Exception('Failed to initialize processor: $error');
       }
+      print('DEBUG: Processor initialized successfully');
 
       // Open and unpack RAW file
+      print('DEBUG: Opening RAW file');
       final pathPtr = filePath.toNativeUtf8();
       final result = _bindings.raw_processor_open(processor, pathPtr.cast<Char>());
       calloc.free(pathPtr);
@@ -96,42 +103,74 @@ class RawProcessor {
         final error = _bindings.raw_processor_get_error().cast<Utf8>().toDartString();
         throw Exception('Failed to open RAW file: $error');
       }
+      print('DEBUG: RAW file opened successfully');
+
+      // Extract EXIF metadata
+      print('DEBUG: Extracting EXIF metadata');
+      ExifMetadata? exifMetadata;
+      final exifData = _bindings.raw_processor_get_exif(processor);
+      if (exifData != nullptr) {
+        print('DEBUG: EXIF data found, converting to Dart object');
+        exifMetadata = ExifMetadata.fromFfi(exifData);
+        _bindings.raw_processor_free_exif(exifData);
+        print('DEBUG: EXIF metadata extracted successfully');
+      } else {
+        print('DEBUG: No EXIF data found');
+      }
 
       // Process the image
+      print('DEBUG: Processing RAW image data');
       final processResult = _bindings.raw_processor_process(processor);
       if (processResult != 0) {
         final error = _bindings.raw_processor_get_error().cast<Utf8>().toDartString();
         throw Exception('Failed to process RAW: $error');
       }
+      print('DEBUG: RAW image processed successfully');
 
       // Get RGB data
+      print('DEBUG: Getting RGB data');
       imageData = _bindings.raw_processor_get_rgb(processor);
       if (imageData == nullptr) {
         final error = _bindings.raw_processor_get_error().cast<Utf8>().toDartString();
         throw Exception('Failed to get RGB data: $error');
       }
+      print('DEBUG: RGB data retrieved successfully');
 
       // Convert to Flutter image
+      print('DEBUG: Converting to Flutter image format');
       final data = imageData.ref;
       final width = data.info.width;
       final height = data.info.height;
       final colors = data.info.colors;
       final dataSize = data.size;
+      print('DEBUG: Image dimensions: ${width}x${height}, colors: $colors, data size: $dataSize');
 
       // Copy RGB data to Dart
+      print('DEBUG: Copying RGB data to Dart Uint8List, size: $dataSize');
       final pixels = Uint8List(dataSize);
       for (int i = 0; i < dataSize; i++) {
         pixels[i] = data.data[i];
       }
+      print('DEBUG: RGB data copied successfully');
 
       // Convert to RGB if needed (handle grayscale)
+      print('DEBUG: Converting to RGB if needed (colors: $colors)');
       final rgbPixels = colors == 3 ? pixels : _convertGrayToRGB(pixels, width, height);
+      print('DEBUG: RGB conversion complete');
       
-      // Return raw image data for processing
-      return img_proc.RawPixelData(
+      // Create raw pixel data
+      print('DEBUG: Creating RawPixelData object');
+      final pixelData = img_proc.RawPixelData(
         pixels: rgbPixels,
         width: width,
         height: height,
+      );
+      
+      // Return both pixel data and EXIF metadata
+      print('DEBUG: Creating RawImageDataResult and returning');
+      return RawImageDataResult(
+        pixelData: pixelData,
+        exifData: exifMetadata,
       );
 
     } catch (e) {

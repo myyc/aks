@@ -6,9 +6,17 @@ import '../models/adjustments.dart';
 import '../services/export_service.dart';
 import 'adjustment_slider.dart';
 import 'tone_curve_widget.dart';
+import 'exif_widget.dart';
 
-class EditingPanel extends StatelessWidget {
+class EditingPanel extends StatefulWidget {
   const EditingPanel({Key? key}) : super(key: key);
+
+  @override
+  State<EditingPanel> createState() => _EditingPanelState();
+}
+
+class _EditingPanelState extends State<EditingPanel> {
+  bool _showExifDetails = false;
   
   @override
   Widget build(BuildContext context) {
@@ -94,6 +102,21 @@ class EditingPanel extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   children: [
+                    // EXIF Section
+                    if (imageState.exifData != null && imageState.exifData!.hasData)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: ExifWidget(
+                          exif: imageState.exifData,
+                          showDetails: _showExifDetails,
+                          onToggleDetails: () {
+                            setState(() {
+                              _showExifDetails = !_showExifDetails;
+                            });
+                          },
+                        ),
+                      ),
+                    
                     // White Balance Section
                     _buildSection(
                       'White Balance',
