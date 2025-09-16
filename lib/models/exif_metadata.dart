@@ -50,12 +50,36 @@ class ExifMetadata {
 
     final exif = exifPtr.ref;
     
-    // Parse datetime from Unix timestamp
+    // Parse datetime from string format "YYYY:MM:DD HH:MM:SS"
     DateTime? parsedDateTime;
     if (exif.datetime != nullptr) {
-      final timestamp = exif.datetime.cast<Int>().value;
-      if (timestamp > 0) {
-        parsedDateTime = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+      final dateString = exif.datetime.cast<Utf8>().toDartString();
+      if (dateString.isNotEmpty) {
+        try {
+          // Parse format "2025:04:15 14:30:00"
+          final parts = dateString.split(' ');
+          if (parts.length == 2) {
+            final datePart = parts[0]; // "2025:04:15"
+            final timePart = parts[1]; // "14:30:00"
+            
+            final dateComponents = datePart.split(':');
+            final timeComponents = timePart.split(':');
+            
+            if (dateComponents.length == 3 && timeComponents.length == 3) {
+              parsedDateTime = DateTime(
+                int.parse(dateComponents[0]), // year
+                int.parse(dateComponents[1]), // month
+                int.parse(dateComponents[2]), // day
+                int.parse(timeComponents[0]), // hour
+                int.parse(timeComponents[1]), // minute
+                int.parse(timeComponents[2]), // second
+              );
+            }
+          }
+        } catch (e) {
+          // If parsing fails, leave as null
+          print('Error parsing date string "$dateString": $e');
+        }
       }
     }
 
