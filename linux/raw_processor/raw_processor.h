@@ -5,7 +5,7 @@
 #ifdef LIBRARY_COMPILATION
   #include "raw_processor_common.h"
 #else
-  #include "../../lib/ffi/raw/raw_processor_common.h"
+  #include "raw_processor_common.h"
 #endif
 
 #ifdef __cplusplus

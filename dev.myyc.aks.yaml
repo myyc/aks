@@ -79,7 +79,6 @@ modules:
           - "*.yaml"
           - "*.yml"
           - "*.flatpak"
-          - lib
           - test
           - android
           - ios
@@ -89,6 +88,9 @@ modules:
     build-commands:
       # Verify the app was pre-built
       - test -f build/linux/x64/release/bundle/aks || (echo "Error: Please run 'flutter build linux --release' first" && exit 1)
+
+      # Copy raw_processor_common.h to linux directory for Flatpak build
+      - cp lib/ffi/raw/raw_processor_common.h linux/raw_processor/
 
       # Build raw_processor library with statically linked LibRaw
       - echo "Building raw_processor with static LibRaw..."
