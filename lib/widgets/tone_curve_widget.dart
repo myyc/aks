@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
 import '../models/adjustments.dart';
 
 enum CurveChannel { rgb, red, green, blue }
@@ -177,7 +176,6 @@ class _ToneCurveWidgetState extends State<ToneCurveWidget> {
     if (_selectedPointIndex == null) return;
     
     final curve = List<CurvePoint>.from(_currentCurve);
-    final oldPoint = curve[_selectedPointIndex!];
     final point = _positionToPoint(position);
     
     // Don't allow moving the first and last points horizontally
@@ -219,7 +217,6 @@ class _ToneCurveWidgetState extends State<ToneCurveWidget> {
     
     // Remove the point if found
     if (pointToRemove != null) {
-      final removedPoint = curve[pointToRemove];
       curve.removeAt(pointToRemove);
       _updateCurve(curve);
       setState(() => _selectedPointIndex = null);

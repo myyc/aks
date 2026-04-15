@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../theme/text_styles.dart';
 import '../models/image_state.dart';
 import '../models/adjustments.dart';
-import '../services/export_service.dart';
 import 'adjustment_slider.dart';
 import 'tone_curve_widget.dart';
 import 'exif_widget.dart';

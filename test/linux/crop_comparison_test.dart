@@ -11,7 +11,7 @@ import 'package:aks/services/processors/image_processor_interface.dart';
 import 'package:aks/models/adjustments.dart';
 import 'package:aks/models/crop_state.dart';
 import 'package:aks/services/raw_processor.dart';
-import 'package:aks/services/image_processor.dart';
+import 'package:aks/models/raw_pixel_data.dart';
 import '../test_helper.dart';
 
 void main() {

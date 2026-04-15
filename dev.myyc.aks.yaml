@@ -89,14 +89,13 @@ modules:
       # Verify the app was pre-built
       - test -f build/linux/x64/release/bundle/aks || (echo "Error: Please run 'flutter build linux --release' first" && exit 1)
 
-      # Copy raw_processor_common.h to linux directory for Flatpak build
-      - cp lib/ffi/raw/raw_processor_common.h linux/raw_processor/
-
-      # Build raw_processor library with statically linked LibRaw
+      # Build raw_processor library with statically linked LibRaw.
+      # Wrapper includes lib/ffi/raw/raw_processor_common.c (canonical source).
       - echo "Building raw_processor with static LibRaw..."
       - |
         gcc -shared -fPIC -o libraw_processor.so \
-          linux/raw_processor/raw_processor.c \
+          linux/raw_processor/raw_processor_wrapper.c \
+          -Ilib/ffi/raw \
           -I/app/include \
           -L/app/lib \
           -Wl,-Bstatic -lraw -Wl,-Bdynamic \

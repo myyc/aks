@@ -59,6 +59,20 @@ class LibRawBindings {
   late final _raw_processor_process = _raw_processor_processPtr
       .asFunction<int Function(ffi.Pointer<ffi.Void>)>();
 
+  void raw_processor_set_highlight_mode(
+    ffi.Pointer<ffi.Void> processor,
+    int mode,
+  ) {
+    return _raw_processor_set_highlight_mode(processor, mode);
+  }
+
+  late final _raw_processor_set_highlight_modePtr = _lookup<
+    ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int)>
+  >('raw_processor_set_highlight_mode');
+  late final _raw_processor_set_highlight_mode =
+      _raw_processor_set_highlight_modePtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>, int)>();
+
   ffi.Pointer<RawImageData> raw_processor_get_rgb(
     ffi.Pointer<ffi.Void> processor,
   ) {

@@ -46,9 +46,12 @@ fi
 mkdir -p linux
 
 # Build libraw_processor.so
+# Compile via the wrapper so this matches the CMake production build
+# (runner/linux/raw_processor/raw_processor_wrapper.c -> lib/ffi/raw/raw_processor_common.c).
 echo -e "${GREEN}Building libraw_processor.so...${NC}"
 gcc -shared -fPIC -o linux/libraw_processor.so \
-    linux/raw_processor/raw_processor.c \
+    linux/raw_processor/raw_processor_wrapper.c \
+    -I lib/ffi/raw \
     $(pkg-config --cflags --libs libraw) \
     -lm
 

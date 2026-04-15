@@ -117,4 +117,15 @@ linux/flutter/ephemeral/
 !test/fixtures/*.nef
 !test/fixtures/*.dng
 
+# But don't commit locally-copied personal photos. The numbered fixtures are
+# populated from a developer's own photo library (see CLAUDE.md) to run the
+# histogram / brightness regression tests across a variety of real scenes.
+# They stay local only because they contain personal EXIF and would bloat the
+# repo. The tests that use them skip gracefully when they're missing.
+test/fixtures/test_image_*.arw
+test/fixtures/test_image_*.raf
+test/fixtures/test_image_*.cr2
+test/fixtures/test_image_*.nef
+test/fixtures/test_image_*.dng
+
 ROADMAP.md

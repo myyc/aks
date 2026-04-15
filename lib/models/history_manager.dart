@@ -97,8 +97,7 @@ class HistoryManager extends ChangeNotifier {
     
     for (int i = 0; i < adj1.length; i++) {
       final a1 = adj1[i] as Map<String, dynamic>;
-      final a2 = adj2[i] as Map<String, dynamic>;
-      
+
       // Find matching adjustment by type
       final matchingAdj = adj2.firstWhere(
         (a) => a['type'] == a1['type'],

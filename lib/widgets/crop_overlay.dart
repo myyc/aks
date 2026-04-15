@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../theme/text_styles.dart';
 import '../models/crop_state.dart';
 
 class CropOverlay extends StatefulWidget {
@@ -533,72 +532,6 @@ class _CropOverlayState extends State<CropOverlay> {
     _dragStart = null;
     _initialCropRect = null;
     _dragHandle = null;
-  }
-  
-  CropRect _constrainToAspectRatio(CropRect rect, double targetRatio, String handle) {
-    // FORCE THE EXACT ASPECT RATIO - NO EXCEPTIONS
-    final width = rect.width;
-    final height = rect.height;
-    
-    // For ALL handles, we ALWAYS maintain the EXACT aspect ratio
-    // We keep the dimension that was changed and adjust the other
-    
-    if (handle == 'top-left') {
-      // Anchor is bottom-right
-      // Always maintain exact aspect ratio
-      final newHeight = width / targetRatio;
-      return CropRect(
-        left: rect.left,
-        top: rect.bottom - newHeight,
-        right: rect.right,
-        bottom: rect.bottom,
-      );
-    } else if (handle == 'top-right') {
-      // Anchor is bottom-left
-      final newHeight = width / targetRatio;
-      return CropRect(
-        left: rect.left,
-        top: rect.bottom - newHeight,
-        right: rect.right,
-        bottom: rect.bottom,
-      );
-    } else if (handle == 'bottom-left') {
-      // Anchor is top-right
-      final newHeight = width / targetRatio;
-      return CropRect(
-        left: rect.left,
-        top: rect.top,
-        right: rect.right,
-        bottom: rect.top + newHeight,
-      );
-    } else if (handle == 'bottom-right') {
-      // Anchor is top-left
-      final newHeight = width / targetRatio;
-      return CropRect(
-        left: rect.left,
-        top: rect.top,
-        right: rect.right,
-        bottom: rect.top + newHeight,
-      );
-    } else if (handle == 'left' || handle == 'right') {
-      // Side handles - adjust height to maintain ratio
-      final newHeight = width / targetRatio;
-      final heightDiff = newHeight - height;
-      return rect.copyWith(
-        top: rect.top - heightDiff / 2,
-        bottom: rect.bottom + heightDiff / 2,
-      );
-    } else if (handle == 'top' || handle == 'bottom') {
-      // Top/bottom handles - adjust width to maintain ratio
-      final newWidth = height * targetRatio;
-      final widthDiff = newWidth - width;
-      return rect.copyWith(
-        left: rect.left - widthDiff / 2,
-        right: rect.right + widthDiff / 2,
-      );
-    }
-    
-    return rect;
   }
   
   // Helper method to ensure crop stays within image bounds

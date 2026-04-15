@@ -1,11 +1,10 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:path/path.dart' as path;
 import 'package:file_picker/file_picker.dart';
 import 'package:xdg_desktop_portal/xdg_desktop_portal.dart';
 import 'image_manipulation_service.dart';
-import 'image_processor.dart';
+import 'crop_service.dart';
 import 'preferences_service.dart';
 import '../models/crop_state.dart';
 import '../ffi/jpeg/jpeg_processor.dart';
@@ -318,7 +317,7 @@ class ExportService {
     if (cropRect != null) {
       print('Applying crop for export: $cropRect');
       print('Image size before crop: ${imageToExport.width}x${imageToExport.height}');
-      imageToExport = await ImageProcessor.applyCropToImage(imageToExport, cropRect);
+      imageToExport = await applyCropToImage(imageToExport, cropRect);
       print('Image size after crop: ${imageToExport.width}x${imageToExport.height}');
     }
     
