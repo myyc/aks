@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'dart:math' as math;
-import 'image_processor.dart';
+import '../models/raw_pixel_data.dart';
 
 /// Generates preview-sized versions of images for faster processing
 class PreviewGenerator {

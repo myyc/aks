@@ -1,10 +1,8 @@
 import 'dart:isolate';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import '../../models/adjustments.dart';
-import '../../models/edit_pipeline.dart';
-import '../image_processor.dart';
 import '../optimized_processor.dart';
+import 'curve_lut.dart';
 import 'image_processor_interface.dart';
 
 /// CPU-based image processor using isolates
@@ -175,10 +173,10 @@ class CpuProcessor extends BaseImageProcessor {
       return;
     }
     
-    final rgbLut = _generateCurveLookupTable(adj.rgbCurve);
-    final redLut = _generateCurveLookupTable(adj.redCurve);
-    final greenLut = _generateCurveLookupTable(adj.greenCurve);
-    final blueLut = _generateCurveLookupTable(adj.blueCurve);
+    final rgbLut = generateCurveLookupTable(adj.rgbCurve);
+    final redLut = generateCurveLookupTable(adj.redCurve);
+    final greenLut = generateCurveLookupTable(adj.greenCurve);
+    final blueLut = generateCurveLookupTable(adj.blueCurve);
     
     
     // Apply the tone curves
@@ -193,68 +191,6 @@ class CpuProcessor extends BaseImageProcessor {
     }
     
   }
-  
-  static Uint8List _generateCurveLookupTable(List<CurvePoint> points) {
-    final lut = Uint8List(256);
-    
-    // Handle empty or insufficient points - return identity
-    if (points.length < 2) {
-      for (int i = 0; i < 256; i++) {
-        lut[i] = i;
-      }
-      return lut;
-    }
-    
-    final sortedPoints = List<CurvePoint>.from(points)
-      ..sort((a, b) => a.x.compareTo(b.x));
-    
-    // Special case: Check for identity curve (default state)
-    if (sortedPoints.length == 2 && 
-        sortedPoints[0].x == 0 && sortedPoints[0].y == 0 &&
-        sortedPoints[1].x == 255 && sortedPoints[1].y == 255) {
-      // Perfect identity mapping
-      for (int i = 0; i < 256; i++) {
-        lut[i] = i;
-      }
-      return lut;
-    }
-    
-    // Fill the beginning up to the first point
-    for (int i = 0; i < sortedPoints[0].x.round() && i < 256; i++) {
-      lut[i] = sortedPoints[0].y.round().clamp(0, 255);
-    }
-    
-    // Use linear interpolation between all points for predictable behavior
-    // This prevents unwanted curves when points are on or near the diagonal
-    for (int i = 0; i < sortedPoints.length - 1; i++) {
-      final p1 = sortedPoints[i];
-      final p2 = sortedPoints[i + 1];
-      final x1 = p1.x.round().clamp(0, 255);
-      final x2 = p2.x.round().clamp(0, 255);
-      
-      for (int x = x1; x <= x2 && x < 256; x++) {
-        if (p2.x - p1.x != 0) {
-          // Linear interpolation between adjacent points
-          final t = (x - p1.x) / (p2.x - p1.x);
-          final y = p1.y + (p2.y - p1.y) * t;
-          lut[x] = y.round().clamp(0, 255);
-        } else {
-          // Same x coordinate - use first point's y value
-          lut[x] = p1.y.round().clamp(0, 255);
-        }
-      }
-    }
-    
-    // Fill the end from the last point
-    final lastX = sortedPoints.last.x.round().clamp(0, 255);
-    for (int i = lastX + 1; i < 256; i++) {
-      lut[i] = sortedPoints.last.y.round().clamp(0, 255);
-    }
-    
-    
-    return lut;
-  }
-  
   
   static void _applySaturationVibrance(Uint8List pixels, SaturationVibranceAdjustment adj) {
     if (adj.saturation == 0 && adj.vibrance == 0) return;

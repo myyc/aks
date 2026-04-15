@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../theme/text_styles.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import '../models/image_state.dart';
 import '../models/crop_state.dart';

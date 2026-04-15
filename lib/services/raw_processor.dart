@@ -1,12 +1,12 @@
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:ffi/ffi.dart';
 import '../ffi/raw/libraw_bindings.dart';
 import '../models/exif_metadata.dart';
 import '../models/raw_image_data_result.dart';
-import 'image_processor.dart' as img_proc;
+import '../models/raw_pixel_data.dart';
+import '../models/highlight_mode.dart';
 
 class RawProcessor {
   static late LibRawBindings _bindings;
@@ -51,7 +51,10 @@ class RawProcessor {
     throw Exception('Failed to load libraw_processor from any path. Tried: ${libraryPaths.join(", ")}');
   }
 
-  static Future<RawImageDataResult?> loadRawFile(String filePath) async {
+  static Future<RawImageDataResult?> loadRawFile(
+    String filePath, {
+    HighlightMode highlightMode = HighlightMode.clip,
+  }) async {
     if (!_initialized) {
       initialize();
     }
@@ -74,10 +77,13 @@ class RawProcessor {
     }
 
     // Process in isolate to avoid blocking UI
-    return await _processInBackground(filePath);
+    return await _processInBackground(filePath, highlightMode);
   }
 
-  static Future<RawImageDataResult?> _processInBackground(String filePath) async {
+  static Future<RawImageDataResult?> _processInBackground(
+    String filePath,
+    HighlightMode highlightMode,
+  ) async {
     Pointer<Void> processor = nullptr;
     Pointer<RawImageData> imageData = nullptr;
 
@@ -117,6 +123,12 @@ class RawProcessor {
       } else {
         print('DEBUG: No EXIF data found');
       }
+
+      // Apply highlight-handling mode before libraw's postprocess pass.
+      _bindings.raw_processor_set_highlight_mode(
+        processor,
+        highlightMode.librawValue,
+      );
 
       // Process the image
       print('DEBUG: Processing RAW image data');
@@ -160,7 +172,7 @@ class RawProcessor {
       
       // Create raw pixel data
       print('DEBUG: Creating RawPixelData object');
-      final pixelData = img_proc.RawPixelData(
+      final pixelData = RawPixelData(
         pixels: rgbPixels,
         width: width,
         height: height,

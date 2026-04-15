@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
-import 'dart:typed_data';
 import 'dart:math' as math;
 import '../models/crop_state.dart';
 
@@ -103,75 +102,36 @@ class HistogramWidget extends StatelessWidget {
     final cropWidth = cropRight - cropLeft;
     final cropHeight = cropBottom - cropTop;
     final cropPixels = cropWidth * cropHeight;
+
+    // Sample target: ~50000 pixels. sampleRate is a 2D step (applied in both
+    // x and y), so the stride is sqrt(total / target) — not total / target.
+    const sampleTarget = 50000;
+    final sampleRate = cropPixels <= sampleTarget
+        ? 1
+        : math.max(1, math.sqrt(cropPixels / sampleTarget).round());
     
-    // Sample every nth pixel for performance
-    final sampleRate = math.max(1, cropPixels ~/ 50000);
-    
-    // Calculate histograms
-    // RGBA format: each pixel is 4 bytes [R, G, B, A]
-    int pixelCount = 0;
-    
-    // Process only pixels within the crop area with sampling
+    // Calculate histograms. RGBA format: each pixel is 4 bytes [R, G, B, A].
     for (int y = cropTop; y < cropBottom; y += sampleRate) {
       for (int x = cropLeft; x < cropRight; x += sampleRate) {
-        // Calculate byte index for this pixel
         final pixelIndex = y * imageWidth + x;
         final byteIndex = pixelIndex * 4;
-        
-        // Make sure we don't go out of bounds
+
         if (byteIndex + 3 >= bytes.length) continue;
-        
+
         final r = bytes[byteIndex];
         final g = bytes[byteIndex + 1];
         final b = bytes[byteIndex + 2];
         final a = bytes[byteIndex + 3];
-        
-        // Skip fully transparent pixels
+
         if (a == 0) continue;
-        
-        pixelCount++;
-        
+
         redHistogram[r]++;
         greenHistogram[g]++;
         blueHistogram[b]++;
-        
-        // Calculate luminance
+
         final lum = (0.299 * r + 0.587 * g + 0.114 * b).round().clamp(0, 255);
         luminanceHistogram[lum]++;
       }
-    }
-    
-    // Check for clipping in all channels
-    int clippedRed = 0, clippedGreen = 0, clippedBlue = 0;
-    int blackRed = 0, blackGreen = 0, blackBlue = 0;
-    
-    for (int i = 0; i < 256; i++) {
-      if (i == 255) {
-        clippedRed = redHistogram[i];
-        clippedGreen = greenHistogram[i];
-        clippedBlue = blueHistogram[i];
-      }
-      if (i == 0) {
-        blackRed = redHistogram[i];
-        blackGreen = greenHistogram[i];
-        blackBlue = blueHistogram[i];
-      }
-    }
-    
-    // Calculate mean values for logging
-    double meanRed = 0, meanGreen = 0, meanBlue = 0;
-    int totalPixels = 0;
-    for (int i = 0; i < 256; i++) {
-      meanRed += i * redHistogram[i];
-      meanGreen += i * greenHistogram[i];
-      meanBlue += i * blueHistogram[i];
-      totalPixels += redHistogram[i]; // All channels should have same count
-    }
-    
-    if (totalPixels > 0) {
-      meanRed /= totalPixels;
-      meanGreen /= totalPixels;
-      meanBlue /= totalPixels;
     }
     
     return HistogramData(
@@ -188,14 +148,29 @@ class HistogramData {
   final List<int> green;
   final List<int> blue;
   final List<int> luminance;
-  
+
+  /// Smoothed versions of the raw counts, used for display. The painter reads
+  /// from these so visual noise (per-bin quantisation spikes, isolated ticks
+  /// caused by integer rounding through adjustment LUTs) is damped out.
+  /// Lightroom / Darktable do the same — the histogram is for at-a-glance
+  /// tonal assessment, not per-bin pixel counts.
+  late final List<double> redSmooth;
+  late final List<double> greenSmooth;
+  late final List<double> blueSmooth;
+  late final List<double> luminanceSmooth;
+
   HistogramData({
     required this.red,
     required this.green,
     required this.blue,
     required this.luminance,
-  });
-  
+  }) {
+    redSmooth = _smooth(red);
+    greenSmooth = _smooth(green);
+    blueSmooth = _smooth(blue);
+    luminanceSmooth = _smooth(luminance);
+  }
+
   factory HistogramData.empty() {
     return HistogramData(
       red: List<int>.filled(256, 0),
@@ -204,34 +179,41 @@ class HistogramData {
       luminance: List<int>.filled(256, 0),
     );
   }
-  
-  int get maxValue {
-    // Find the maximum value, but ignore extreme outliers at 0 and 255
-    // which often represent clipped shadows/highlights
-    int max = 0;
-    for (int i = 1; i < 255; i++) {  // Skip 0 and 255
-      max = math.max(max, red[i]);
-      max = math.max(max, green[i]);
-      max = math.max(max, blue[i]);
+
+  /// Gaussian-ish blur (5-tap binomial kernel [1,4,6,4,1]/16) applied twice
+  /// — equivalent to a sigma ≈ 1.4 blur. Soft enough to keep the overall
+  /// shape, strong enough to fuse single-bin spikes with their neighbours.
+  static List<double> _smooth(List<int> histogram) {
+    const kernel = [1.0, 4.0, 6.0, 4.0, 1.0];
+    const sum = 16.0;
+
+    List<double> pass(List<double> src) {
+      final out = List<double>.filled(src.length, 0);
+      for (int i = 0; i < src.length; i++) {
+        double acc = 0;
+        for (int k = -2; k <= 2; k++) {
+          // Clamp-at-edge sampling.
+          final j = (i + k).clamp(0, src.length - 1);
+          acc += src[j] * kernel[k + 2];
+        }
+        out[i] = acc / sum;
+      }
+      return out;
     }
-    
-    // Also consider 0 and 255 but cap them to not dominate
-    final edge0 = math.max(red[0], math.max(green[0], blue[0]));
-    final edge255 = math.max(red[255], math.max(green[255], blue[255]));
-    
-    // If edges are more than 3x the max, cap them
-    if (edge0 > max * 3) {
-      max = math.max(max, edge0 ~/ 3);
-    } else {
-      max = math.max(max, edge0);
+
+    final first = pass(histogram.map((v) => v.toDouble()).toList());
+    return pass(first);
+  }
+
+  /// Max over the smoothed RGB channels, used to scale the painter's y-axis.
+  /// Operates on smoothed data so the scale matches what's drawn.
+  double get maxValue {
+    double max = 0;
+    for (int i = 0; i < 256; i++) {
+      if (redSmooth[i] > max) max = redSmooth[i];
+      if (greenSmooth[i] > max) max = greenSmooth[i];
+      if (blueSmooth[i] > max) max = blueSmooth[i];
     }
-    
-    if (edge255 > max * 3) {
-      max = math.max(max, edge255 ~/ 3);
-    } else {
-      max = math.max(max, edge255);
-    }
-    
     return max;
   }
 }
@@ -249,44 +231,38 @@ class HistogramPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final maxValue = data.maxValue;
     if (maxValue == 0) return;
-    
+
     final binWidth = size.width / 256;
-    
+
     if (showRGB) {
-      // Draw RGB channels
-      _drawChannel(canvas, size, data.red, Colors.red.withOpacity(0.5), maxValue, binWidth);
-      _drawChannel(canvas, size, data.green, Colors.green.withOpacity(0.5), maxValue, binWidth);
-      _drawChannel(canvas, size, data.blue, Colors.blue.withOpacity(0.5), maxValue, binWidth);
+      _drawChannel(canvas, size, data.redSmooth,
+          Colors.red.withOpacity(0.5), maxValue, binWidth);
+      _drawChannel(canvas, size, data.greenSmooth,
+          Colors.green.withOpacity(0.5), maxValue, binWidth);
+      _drawChannel(canvas, size, data.blueSmooth,
+          Colors.blue.withOpacity(0.5), maxValue, binWidth);
     } else {
-      // Draw luminance only
-      _drawChannel(canvas, size, data.luminance, Colors.white.withOpacity(0.7), maxValue, binWidth);
+      _drawChannel(canvas, size, data.luminanceSmooth,
+          Colors.white.withOpacity(0.7), maxValue, binWidth);
     }
-    
-    // Draw grid lines
+
     _drawGrid(canvas, size);
   }
-  
-  void _drawChannel(Canvas canvas, Size size, List<int> histogram, Color color, int maxValue, double binWidth) {
+
+  void _drawChannel(Canvas canvas, Size size, List<double> histogram,
+      Color color, double maxValue, double binWidth) {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
-    
+
     final path = Path();
     path.moveTo(0, size.height);
-    
+
     for (int i = 0; i < 256; i++) {
       final x = i * binWidth;
-      
-      // Special handling for edge values (0 and 255) which often spike
-      double displayValue = histogram[i].toDouble();
-      if ((i == 0 || i == 255) && histogram[i] > maxValue * 3) {
-        // Cap extreme spikes at the edges for better visualization
-        displayValue = maxValue * 3.0;
-      }
-      
-      final height = (displayValue / maxValue) * size.height * 0.9; // 90% max height
+      final height = (histogram[i] / maxValue) * size.height * 0.9;
       final y = size.height - height;
-      
+
       if (i == 0) {
         path.lineTo(x, y);
       } else {

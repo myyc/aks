@@ -9,16 +9,45 @@ class OptimizedProcessor {
   static double _lastExposure = 0;
   static double _lastContrast = 0;
   
-  /// Generate exposure lookup table
+  /// Generate exposure lookup table.
+  ///
+  /// Applies the exposure shift in linear light:
+  ///   sRGB -> linear -> * 2^EV -> sRGB.
+  ///
+  /// Pixel values passed through the Flutter/raw pipeline are sRGB-encoded
+  /// (gamma-compressed), so a naive `v * 2^EV` wildly over-amplifies mid-tones
+  /// — a +1 stop then maps 128 to 256 (clipped to 255) instead of the
+  /// photographically correct ~179.
   static Uint8List generateExposureLUT(double exposureValue) {
     final lut = Uint8List(256);
-    final factor = math.pow(2, exposureValue).toDouble();
-    
-    for (int i = 0; i < 256; i++) {
-      lut[i] = (i * factor).round().clamp(0, 255);
+    if (exposureValue == 0) {
+      for (int i = 0; i < 256; i++) {
+        lut[i] = i;
+      }
+      return lut;
     }
-    
+    final factor = math.pow(2, exposureValue).toDouble();
+    for (int i = 0; i < 256; i++) {
+      final linear = _srgbToLinear(i / 255.0) * factor;
+      lut[i] = _linearToSrgb8(linear);
+    }
     return lut;
+  }
+
+  /// sRGB-encoded value in [0, 1] -> linear light in [0, 1].
+  static double _srgbToLinear(double s) {
+    return s <= 0.04045
+        ? s / 12.92
+        : math.pow((s + 0.055) / 1.055, 2.4).toDouble();
+  }
+
+  /// Linear light -> sRGB-encoded byte.
+  static int _linearToSrgb8(double linear) {
+    final c = linear.clamp(0.0, 1.0);
+    final s = c <= 0.0031308
+        ? c * 12.92
+        : 1.055 * math.pow(c, 1 / 2.4) - 0.055;
+    return (s * 255.0).round().clamp(0, 255);
   }
   
   /// Generate contrast lookup table

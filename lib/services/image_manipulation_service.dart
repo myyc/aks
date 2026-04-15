@@ -1,5 +1,4 @@
 import 'dart:ui' as ui;
-import 'dart:typed_data';
 import 'dart:math' as math;
 
 /// Service for manipulating images (resize, frame, etc.)

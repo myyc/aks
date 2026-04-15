@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import '../../models/adjustments.dart';
 import '../../models/edit_pipeline.dart';
 import '../../models/crop_state.dart';
-import '../image_processor.dart';
+import '../../models/raw_pixel_data.dart';
 
 /// Abstract interface for image processors
 /// Allows different implementations (CPU, Vulkan, Metal, etc.)

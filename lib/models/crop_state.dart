@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 
 /// Represents the crop region in normalized coordinates (0.0 to 1.0)
 class CropRect {

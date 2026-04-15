@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 /// Base class for all image adjustments
 abstract class Adjustment {
   final String type;

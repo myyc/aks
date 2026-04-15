@@ -6,7 +6,6 @@ import 'package:bitsdojo_window/bitsdojo_window.dart';
 import '../models/image_state.dart';
 import '../models/crop_state.dart';
 import '../services/file_service.dart';
-import '../services/export_service.dart';
 import '../widgets/toolbar.dart';
 import '../widgets/image_viewer.dart';
 import '../widgets/tabbed_sidebar.dart';

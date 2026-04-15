@@ -66,6 +66,16 @@ void raw_processor_free_exif(ExifData* exif);
 void raw_processor_cleanup(void* processor);
 const char* raw_processor_get_error();
 
+// Configure highlight handling for the next call to raw_processor_process().
+// Values map to libraw's params.highlight:
+//   0 = clip (default, sharp 255 pile-up on clipped channels)
+//   1 = unclip (preserves channel ratios; can produce magenta highlights)
+//   2 = blend (lerp clipped channel toward unclipped mean)
+//   3-9 = rebuild/reconstruct (iterative; higher = more expensive)
+// Any unrecognised value is clamped to [0, 9]; call this after
+// raw_processor_open() but before raw_processor_process().
+void raw_processor_set_highlight_mode(void* processor, int mode);
+
 #ifdef __cplusplus
 }
 #endif

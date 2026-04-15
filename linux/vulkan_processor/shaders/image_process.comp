@@ -116,8 +116,25 @@ vec3 applyWhiteBalance(vec3 color, float temperature, float tint) {
     return color;
 }
 
+// sRGB-encoded [0,1] -> linear light [0,1]
+vec3 srgbToLinear(vec3 s) {
+    vec3 low = s / 12.92;
+    vec3 high = pow((s + 0.055) / 1.055, vec3(2.4));
+    return mix(low, high, step(0.04045, s));
+}
+
+// Linear light [0,1] -> sRGB-encoded [0,1]
+vec3 linearToSrgb(vec3 c) {
+    c = clamp(c, 0.0, 1.0);
+    vec3 low = c * 12.92;
+    vec3 high = 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055;
+    return mix(low, high, step(0.0031308, c));
+}
+
+// Exposure in photographic stops: decode sRGB -> * 2^EV -> re-encode sRGB.
 vec3 applyExposure(vec3 color, float exposure) {
-    return color * pow(2.0, exposure);
+    if (exposure == 0.0) return color;
+    return linearToSrgb(srgbToLinear(color) * pow(2.0, exposure));
 }
 
 vec3 applyContrast(vec3 color, float contrast) {

@@ -3,11 +3,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/text_styles.dart';
-import 'dart:ui' as ui;
 import '../models/image_state.dart';
 import '../models/crop_state.dart';
 import 'crop_overlay.dart';
-import 'applied_crop_overlay.dart';
 
 class ImageViewer extends StatefulWidget {
   const ImageViewer({Key? key}) : super(key: key);
