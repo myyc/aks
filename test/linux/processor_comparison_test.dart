@@ -238,7 +238,69 @@ void main() {
       // Compare - should have minimal difference
       _comparePixels(baselineResult, curveResult, 'Near-diagonal curve', maxDifference: 5);
     });
-    
+
+    test('CPU and GPU should agree on a non-identity tone curve', () async {
+      if (rawPixels == null) {
+        print('SKIPPED: Test image not available');
+        return;
+      }
+
+      if (!await VulkanProcessor.isAvailable()) {
+        print('SKIPPED: Vulkan not available on this system');
+        return;
+      }
+
+      print('\n=== Testing CPU vs GPU with non-identity tone curve ===');
+
+      // A mild S-curve with distinct per-channel curves so we exercise
+      // both the master rgbLut path and the individual red/green/blue LUTs.
+      final sCurve = ToneCurveAdjustment(
+        rgbCurve: [
+          CurvePoint(0, 0),
+          CurvePoint(64, 48),     // crush shadows
+          CurvePoint(192, 208),   // lift highlights
+          CurvePoint(255, 255),
+        ],
+        redCurve: [
+          CurvePoint(0, 0),
+          CurvePoint(128, 140),   // warm shift on reds
+          CurvePoint(255, 255),
+        ],
+        blueCurve: [
+          CurvePoint(0, 0),
+          CurvePoint(128, 116),   // cool shift on blues
+          CurvePoint(255, 255),
+        ],
+      );
+
+      // CPU path
+      final cpuProcessor = CpuProcessor();
+      await cpuProcessor.initialize();
+      final cpuResult = await cpuProcessor.processPixels(
+        Uint8List.fromList(rawPixels),
+        imageWidth,
+        imageHeight,
+        [sCurve],
+      );
+      cpuProcessor.dispose();
+
+      // GPU path
+      final gpuProcessor = VulkanProcessor();
+      await gpuProcessor.initialize();
+      final gpuResult = await gpuProcessor.processPixels(
+        Uint8List.fromList(rawPixels),
+        imageWidth,
+        imageHeight,
+        [sCurve],
+      );
+      gpuProcessor.dispose();
+
+      // Shader rounds float→byte with +0.5 before sampling the byte LUT,
+      // so CPU and GPU produce byte-identical output for tone curves.
+      _comparePixels(cpuResult, gpuResult, 'S-curve + per-channel',
+          maxDifference: 1);
+    });
+
     test('Exposure adjustment should brighten image', () async {
       if (rawPixels == null) {
         print('SKIPPED: Test image not available');

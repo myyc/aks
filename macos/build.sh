@@ -84,9 +84,13 @@ if [ -n "$LIBRAW_STATIC" ]; then
     
     # Set minimum macOS version to match system libraries
     # Use 12.0 as a reasonable minimum that supports both Intel and Apple Silicon
+    # Source is the wrapper which includes the canonical C file at
+    # ../lib/ffi/raw/raw_processor_common.c — shared across Linux / macOS /
+    # Flatpak so the FFI surface never drifts across platforms.
     clang -shared -fPIC -o libraw_processor.dylib \
         -mmacosx-version-min=12.0 \
-        raw_processor/raw_processor.c \
+        raw_processor/raw_processor_wrapper.c \
+        -I"../lib/ffi/raw" \
         -I"$LIBRAW_INCLUDE" \
         "$LIBRAW_STATIC" \
         $JPEG_LIB \
@@ -99,7 +103,8 @@ else
     echo -e "${YELLOW}Using dynamic linking for libraw (may have dependency issues)${NC}"
     clang -shared -fPIC -o libraw_processor.dylib \
         -mmacosx-version-min=12.0 \
-        raw_processor/raw_processor.c \
+        raw_processor/raw_processor_wrapper.c \
+        -I"../lib/ffi/raw" \
         -I"$LIBRAW_INCLUDE" -L"$LIBRAW_LIB" -lraw -lm \
         -Wl,-rpath,@loader_path
 fi
