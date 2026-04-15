@@ -60,20 +60,20 @@ gamma-encoded. If you touch either function, keep them in sync.
 
 ## Native RAW processor build paths
 
-The canonical C source is `lib/ffi/raw/raw_processor_common.{c,h}`. Three
-consumers include/compile it:
+The canonical C source is `lib/ffi/raw/raw_processor_common.{c,h}`. All four
+consumers compile a tiny wrapper that `#include`s it:
 
-- Production Linux build (CMake) — `linux/raw_processor/raw_processor_wrapper.c`
-  which `#include`s `../../lib/ffi/raw/raw_processor_common.c`.
+- Production Linux build (CMake) — `linux/raw_processor/raw_processor_wrapper.c`.
 - Test libraries (`scripts/build_test_libs.sh`) — same wrapper.
 - Flatpak (`dev.myyc.aks.yaml`) — same wrapper.
-- macOS (`macos/raw_processor/raw_processor.c`) — **standalone copy**, not
-  wrapped. If you change the common source, mirror it here too or convert
-  macOS to use a wrapper the same way.
+- macOS (`macos/raw_processor/raw_processor_wrapper.c`) — same wrapper.
+  `macos/build.sh` and `macos/Makefile` pass `-I../lib/ffi/raw` so the
+  canonical header is picked up; Xcode's "Build Native Libraries" phase
+  lists the wrapper + canonical `.c`/`.h` as input dependencies.
 
-All three Linux paths were consolidated onto the wrapper in the
-`refactor/cleanup-and-imagestate` branch; prior to that, stale duplicates
-at `linux/raw_processor/raw_processor.c` kept drifting.
+Consolidation history: Linux paths were unified on the
+`refactor/cleanup-and-imagestate` branch; macOS was migrated on the
+follow-up `followup/macos-parity-and-tone-curve-test` branch.
 
 ## Histogram
 

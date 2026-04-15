@@ -301,8 +301,9 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(SRCROOT)/raw_processor/raw_processor.c",
-				"$(SRCROOT)/raw_processor/raw_processor.h",
+				"$(SRCROOT)/raw_processor/raw_processor_wrapper.c",
+				"$(SRCROOT)/../lib/ffi/raw/raw_processor_common.c",
+				"$(SRCROOT)/../lib/ffi/raw/raw_processor_common.h",
 			);
 			name = "Build Native Libraries";
 			outputFileListPaths = (

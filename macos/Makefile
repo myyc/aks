@@ -10,9 +10,10 @@ BUILD_DIR = .
 # Targets
 all: libraw_processor.dylib
 
-libraw_processor.dylib: raw_processor/raw_processor.c
+libraw_processor.dylib: raw_processor/raw_processor_wrapper.c ../lib/ffi/raw/raw_processor_common.c
 	$(CC) $(CFLAGS) -o $(BUILD_DIR)/libraw_processor.dylib \
-		raw_processor/raw_processor.c \
+		raw_processor/raw_processor_wrapper.c \
+		-I../lib/ffi/raw \
 		$(LIBRAW_FLAGS) -lm
 
 clean:

@@ -81,21 +81,22 @@ vec3 applyToneCurves(vec3 color) {
     if (params.toneCurveEnabled == 0.0) {
         return color;
     }
-    
-    // Convert to 0-255 range
-    ivec3 indices = ivec3(clamp(color * 255.0, 0.0, 255.0));
-    
-    // Apply RGB master curve first
-    indices.r = int(getLutValue(rgbLut.data, uint(indices.r)));
-    indices.g = int(getLutValue(rgbLut.data, uint(indices.g)));
-    indices.b = int(getLutValue(rgbLut.data, uint(indices.b)));
-    
-    // Then apply individual channel curves
+
+    // Round (not truncate) when sampling the 256-entry byte LUTs so
+    // colour 0.50196 (which is byte 128) hits index 128, not 127.
+    ivec3 indices = ivec3(clamp(color * 255.0 + 0.5, 0.0, 255.0));
+
+    // Must match the CPU order (cpu_processor.dart:_applyToneCurve):
+    // per-channel first, then master RGB. The two orders are not
+    // commutative for non-identity curves.
     indices.r = int(getLutValue(redLut.data, uint(indices.r)));
     indices.g = int(getLutValue(greenLut.data, uint(indices.g)));
     indices.b = int(getLutValue(blueLut.data, uint(indices.b)));
-    
-    // Convert back to 0-1 range
+
+    indices.r = int(getLutValue(rgbLut.data, uint(indices.r)));
+    indices.g = int(getLutValue(rgbLut.data, uint(indices.g)));
+    indices.b = int(getLutValue(rgbLut.data, uint(indices.b)));
+
     return vec3(indices) / 255.0;
 }
 
